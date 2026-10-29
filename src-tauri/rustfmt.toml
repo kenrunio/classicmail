@@ -1,0 +1,4 @@
+# cargo fmt: long lines like the rest of the code base (and the front end's Prettier width)
+max_width = 140
+use_small_heuristics = "Max"
+newline_style = "Unix"

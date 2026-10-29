@@ -1,0 +1,797 @@
+/* Mail module (Outlook 2007 Blue). Colours come from theme/office2007.css variables only. */
+
+/* ---- navigation pane --------------------------------------------------------------------- */
+.cm-mail-nav {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.cm-mail-favs {
+  padding: 2px 0 4px;
+}
+.cm-mail-tree {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 2px 0;
+}
+.cm-mail-allitems {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--grid-line);
+  color: var(--text-title);
+  font-weight: 700;
+}
+
+/* ---- view layout ------------------------------------------------------------------------- */
+.cm-mail-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  background: var(--panel-bg);
+}
+.cm-mail-view.rp-bottom {
+  flex-direction: column;
+}
+.cm-mail-view.rp-off .cm-mail-listcol {
+  flex: 1;
+}
+.cm-mail-listcol {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  flex: none;
+  overflow: hidden;
+}
+.cm-mail-view.rp-bottom .cm-mail-listcol {
+  width: 100%;
+}
+.cm-mail-view.rp-right .cm-mail-listcol {
+  border-right: 1px solid var(--frame-light);
+}
+.cm-mail-readingpane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-bg);
+}
+.cm-mail-view.rp-bottom .cm-mail-readingpane {
+  border-top: 1px solid var(--frame-light);
+}
+.cm-mail-title {
+  font-size: 15px;
+}
+
+/* Instant Search */
+.cm-mail-search {
+  display: flex;
+  align-items: center;
+  height: 26px;
+  padding: 2px 4px;
+  background: var(--grad-pane-header);
+  border-bottom: 1px solid var(--frame-light);
+  flex: none;
+}
+.cm-mail-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 20px;
+  border: 1px solid #abc1de;
+  border-right: none;
+  padding: 1px 5px;
+  outline: none;
+  background: var(--panel-bg);
+}
+.cm-mail-search-input::placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+}
+.cm-mail-search-input:focus {
+  border-color: #5584c4;
+}
+.cm-mail-search-btn {
+  width: 24px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #abc1de;
+  background: var(--grad-button);
+}
+.cm-mail-search-btn:hover {
+  background: var(--grad-hover);
+  border-color: var(--hover-border);
+}
+.cm-mail-searchbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 3px 6px;
+  font-size: var(--font-size-small);
+  background: var(--info-bar);
+  border-bottom: 1px solid var(--info-bar-border);
+  flex: none;
+}
+
+/* "Gmail": a search result only Gmail's own search found (its text isn't on this computer) */
+.cm-mail-gmailtag {
+  display: inline-block;
+  margin: 0 5px 0 0;
+  padding: 0 4px;
+  border: 1px solid #c9d7ec;
+  border-radius: 3px;
+  background: #eef3fb;
+  color: #2c62b4;
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: normal;
+  font-style: normal;
+  vertical-align: 1px;
+}
+.cm-mail-row.compact .l2 .cm-mail-gmailtag {
+  margin-right: 0;
+}
+.cm-mail-searchbar .cm-mail-gmailtag {
+  margin: 0 0 0 4px;
+}
+
+/* "Arranged By: Date    Newest on top" */
+.cm-mail-arrbar {
+  display: flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  background: var(--grad-column-header);
+  border-bottom: 1px solid #c5d3e6;
+  font-size: var(--font-size-small);
+  font-weight: 700;
+  color: var(--text-title);
+  flex: none;
+}
+.cm-mail-arrbar-l {
+  flex: 1;
+  cursor: default;
+}
+.cm-mail-arrbar-r {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 400;
+  color: var(--text);
+}
+.cm-mail-arrbar-l:hover,
+.cm-mail-arrbar-r:hover {
+  text-decoration: underline;
+}
+
+/* ---- message list ------------------------------------------------------------------------ */
+.cm-mail-list-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cm-mail-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* always reserve the scrollbar's width, so the rows are exactly as wide as the column header
+     (which leaves 16px for it) even when a short list has no scrollbar */
+  scrollbar-gutter: stable;
+  outline: none;
+  background: var(--panel-bg);
+  position: relative;
+}
+.cm-mail-list-empty {
+  position: absolute;
+  top: 16px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: var(--text-muted);
+}
+.cm-mail-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px;
+  color: var(--group-text);
+  font-weight: 700;
+  border-bottom: 1px solid var(--frame-light);
+  background: var(--panel-bg);
+  cursor: default;
+}
+.cm-mail-group > span:first-of-type {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  unicode-bidi: plaintext;
+}
+.cm-mail-group-count {
+  flex: none;
+  white-space: nowrap;
+}
+.cm-mail-list.grid .cm-mail-group {
+  background: var(--grad-group-header);
+}
+.cm-mail-group-count {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.cm-mail-row {
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--grid-line);
+  cursor: default;
+}
+.cm-mail-row.loading {
+  background: repeating-linear-gradient(90deg, var(--panel-alt) 0 40px, var(--panel-bg) 40px 80px);
+}
+.cm-mail-list .cm-mail-row.selected {
+  background: var(--row-selected-inactive);
+}
+.cm-mail-list:focus .cm-mail-row.selected,
+.cm-mail-list:focus-within .cm-mail-row.selected {
+  background: var(--row-selected);
+}
+.cm-mail-list:focus .cm-mail-row.focused {
+  outline: 1px dotted var(--row-selected-border);
+  outline-offset: -1px;
+}
+.cm-mail-row:hover:not(.selected) {
+  background: var(--row-hover);
+}
+.cm-mail-row.unread .who,
+.cm-mail-row.unread .subj,
+.cm-mail-row.unread .g-from,
+.cm-mail-row.unread .g-subj,
+.cm-mail-row.unread .g-date {
+  font-weight: var(--unread-bold);
+}
+
+/* two-line rows (Reading Pane on the right) */
+.cm-mail-row.compact .c-icon {
+  width: 24px;
+  flex: none;
+  display: flex;
+  justify-content: center;
+  padding-top: 3px;
+}
+.cm-mail-row.compact .c-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+}
+.cm-mail-row.compact .l1,
+.cm-mail-row.compact .l2 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.cm-mail-row.compact .who {
+  flex: 1;
+  min-width: 0;
+  unicode-bidi: plaintext;
+  text-align: left;
+}
+.cm-mail-row.compact .date {
+  flex: none;
+  font-size: var(--font-size-small);
+  color: var(--text);
+}
+.cm-mail-row.compact .l2 {
+  color: var(--text);
+}
+.cm-mail-row.compact .subj {
+  flex: 1;
+  min-width: 0;
+  unicode-bidi: plaintext;
+  text-align: left;
+}
+.cm-mail-row.compact .folder {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: var(--font-size-small);
+}
+.cm-mail-row.compact .cm-mail-flag {
+  width: 24px;
+  flex: none;
+  border-left: 1px solid var(--grid-line);
+}
+
+.cm-mail-flag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.35;
+}
+.cm-mail-flag:hover {
+  opacity: 0.8;
+}
+.cm-mail-flag.on,
+.cm-mail-flag.done {
+  opacity: 1;
+}
+
+/* column grid (Reading Pane at the bottom / off) */
+.cm-mail-gridhead {
+  display: flex;
+  overflow: hidden;
+  height: 20px;
+  background: var(--grad-column-header);
+  border-bottom: 1px solid #c5d3e6;
+  flex: none;
+  padding-right: 16px; /* scrollbar */
+}
+.cm-mail-gridhead > span {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 4px;
+  border-right: 1px solid #d5dfee;
+  font-size: var(--font-size-small);
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: default;
+}
+.cm-mail-gridhead > span:hover {
+  background: var(--grad-hover);
+}
+.cm-mail-gridhead > span.sorted {
+  background: linear-gradient(#f2f7fe, #dbe8f9);
+}
+.cm-mail-colresize {
+  position: absolute;
+  right: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+}
+.cm-mail-row.grid {
+  align-items: center;
+}
+.cm-mail-row.grid > span,
+.cm-mail-gridhead > span {
+  flex: none;
+}
+.cm-mail-row.grid > span {
+  padding: 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.g-imp,
+.g-att {
+  width: 18px;
+  justify-content: center;
+}
+.g-icon {
+  width: 22px;
+  justify-content: center;
+}
+.g-flag {
+  width: 24px;
+  justify-content: center;
+}
+.g-from {
+  width: var(--w-from, 190px);
+}
+.g-subj {
+  flex: 1 1 auto !important;
+  min-width: 80px;
+}
+.g-folder {
+  width: var(--w-folder, 110px);
+}
+.g-date {
+  width: var(--w-date, 150px);
+}
+.g-size {
+  width: 64px;
+  text-align: right;
+  justify-content: flex-end;
+}
+.cm-mail-row.grid .g-imp,
+.cm-mail-row.grid .g-att,
+.cm-mail-row.grid .g-icon,
+.cm-mail-row.grid .g-flag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cm-mail-row.grid .g-from,
+.cm-mail-row.grid .g-subj {
+  unicode-bidi: plaintext;
+  text-align: left;
+}
+
+/* configurable columns (single-line layout) */
+.cm-mail-row.grid .g-col.fixed,
+.cm-mail-gridhead > .g-col.fixed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.g-col.flex {
+  flex: 1 1 auto !important;
+  min-width: 80px;
+}
+.g-col.right {
+  justify-content: flex-end;
+  text-align: right;
+}
+.cm-mail-row.grid .g-col.text {
+  unicode-bidi: plaintext;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+.cm-mail-row.unread .g-col.text,
+.cm-mail-row.unread .g-col.right {
+  font-weight: var(--unread-bold);
+}
+
+/* ---- reading pane ------------------------------------------------------------------------ */
+.cm-mail-rp-empty {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 40px;
+  color: var(--text-muted);
+}
+.cm-mail-reader {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cm-mail-rp-header {
+  flex: none;
+  padding: 6px 10px 6px;
+  background: linear-gradient(#ffffff, #eef3fa);
+  border-bottom: 1px solid #c5d3e6;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.cm-mail-rp-subject {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 3px;
+  unicode-bidi: plaintext;
+  text-align: left;
+}
+.cm-mail-rp-from {
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+.cm-mail-rp-addr {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.cm-mail-rp-fields {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  font-size: var(--font-size-small);
+}
+.cm-mail-rp-fields td {
+  padding: 1px 0;
+  vertical-align: top;
+}
+.cm-mail-rp-fields td:first-child {
+  width: 46px;
+  color: var(--text-muted);
+}
+/* From / To / Cc names: click selects one (Ctrl+A all), Ctrl+C copies "Name <email>" */
+.cm-addr-tokens {
+  outline: none;
+}
+.cm-addr-token {
+  user-select: none;
+  -webkit-user-select: none;
+  padding: 0 1px;
+}
+.cm-addr-token.selected {
+  background: var(--row-selected);
+  outline: 1px solid var(--row-selected-border);
+}
+/* while a To / Cc line is in use it shows every name instead of "…" */
+.cm-mail-rp-fields td.cm-ellipsis:focus-within {
+  white-space: normal;
+}
+.cm-mail-infobar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 3px 0;
+  padding: 2px 6px;
+  background: var(--info-bar);
+  border: 1px solid var(--info-bar-border);
+  font-size: var(--font-size-small);
+}
+.cm-mail-infobar.clickable:hover {
+  background: var(--grad-hover);
+  border-color: var(--hover-border);
+}
+.cm-mail-atts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #d5dfee;
+}
+.cm-mail-att {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 5px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  font-size: var(--font-size-small);
+  cursor: default;
+  user-select: none;
+  max-width: 320px;
+}
+.cm-mail-att > .cm-muted {
+  white-space: nowrap;
+}
+.cm-mail-att > span:not(.cm-muted) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cm-mail-att:hover {
+  background: var(--grad-hover);
+  border-color: var(--hover-border);
+}
+.cm-mail-att.selected {
+  background: var(--grad-selected);
+  border-color: var(--pressed-border);
+}
+/* attachment preview in place of the body */
+.cm-mail-preview-pdf {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: #fff;
+}
+.cm-mail-preview-none {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  text-align: center;
+  background: #fff;
+}
+.cm-mail-preview-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.cm-mail-att.message {
+  font-weight: 700;
+  background: var(--grad-button);
+  border-color: #c5d3e6;
+}
+.cm-mail-body {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: none;
+  background: var(--panel-bg);
+}
+
+/* meeting request */
+.cm-mail-invite {
+  margin: -6px -10px 6px;
+  padding: 4px 10px 4px;
+  background: var(--grad-toolbar);
+  border-bottom: 1px solid #c5d3e6;
+}
+.cm-mail-invite-buttons {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 3px;
+}
+.cm-mail-invite-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+}
+.cm-mail-invite-btn:hover:not(:disabled) {
+  background: var(--grad-hover);
+  border-color: var(--hover-border);
+}
+.cm-mail-invite-btn.pressed {
+  background: var(--grad-selected);
+  border-color: var(--pressed-border);
+}
+
+/* ---- toolbar ---------------------------------------------------------------------------- */
+.cm-mail-addrbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  margin-left: 2px;
+}
+.cm-mail-addrbox .cm-input {
+  width: 150px;
+  height: 20px;
+  font-size: var(--font-size-small);
+}
+.cm-mail-addrbox .cm-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* ---- dialogs ---------------------------------------------------------------------------- */
+.cm-mail-picker {
+  height: 260px;
+  overflow: auto;
+  border: 1px solid #abc1de;
+  background: var(--panel-bg);
+}
+.cm-mail-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 3px;
+  margin-bottom: 6px;
+}
+.cm-mail-form label {
+  margin-top: 3px;
+}
+.cm-mail-fieldset {
+  border: 1px solid #c5d3e6;
+  padding: 4px 8px 8px;
+}
+textarea.cm-mail-headers {
+  width: 100%;
+  height: 200px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 11px;
+  white-space: pre;
+  user-select: text;
+}
+
+/* ---- message window --------------------------------------------------------------------- */
+.cm-mail-msgwin .cm-itemwin-body {
+  background: var(--panel-bg);
+}
+.cm-rb-qat {
+  width: 20px;
+  height: 18px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 9px;
+  color: var(--text-title);
+  border-radius: 2px;
+}
+.cm-rb-qat:hover {
+  background: var(--grad-hover);
+  border-color: var(--hover-border);
+}
+
+/* ---- Show as Conversations --------------------------------------------------------------- */
+.cm-mail-twisty {
+  flex: none;
+  width: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+.cm-mail-row.grid > .cm-mail-twisty,
+.cm-mail-gridhead > .cm-mail-twisty {
+  width: 14px;
+  padding: 0;
+  border-right: none;
+  background: none;
+}
+.cm-mail-row.compact > .cm-mail-twisty {
+  align-items: flex-start;
+  padding-top: 7px;
+}
+.cm-mail-twisty.closed,
+.cm-mail-twisty.open {
+  cursor: pointer;
+}
+.cm-mail-twisty.closed:hover,
+.cm-mail-twisty.open:hover {
+  color: var(--text-title);
+}
+/* an unread conversation: bold, with a bar on the left */
+.cm-mail-row.conv-unread {
+  box-shadow: inset 3px 0 0 var(--cal-selection);
+}
+.cm-mail-convcount {
+  flex: none;
+  margin-left: 3px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+.cm-mail-list.conv .cm-mail-row.compact .who {
+  flex: 0 1 auto;
+}
+.cm-mail-list.conv .cm-mail-row.compact .date {
+  margin-left: auto;
+}
+.cm-mail-fromcell {
+  display: flex;
+  min-width: 0;
+}
+.cm-mail-fromcell > .cm-ellipsis {
+  min-width: 0;
+}
+/* messages of an open conversation: indented, their folder in grey when it's another one */
+.cm-mail-row.compact.child .c-icon {
+  margin-left: 10px;
+}
+.cm-mail-row.grid.child .g-from,
+.cm-mail-row.grid.child .g-subject {
+  padding-left: 18px;
+}
+.cm-mail-row.child .l2 {
+  color: var(--text-muted);
+}
+.cm-mail-childfolder {
+  flex: none;
+  margin-right: 6px;
+  color: var(--text-muted);
+}
+.cm-mail-childtext {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  unicode-bidi: plaintext;
+}
+.cm-mail-row.compact.child .l2 {
+  overflow: hidden;
+}
+
+/* Conversation messages that aren't in the folder being viewed (e.g. your reply in Sent Items):
+   italic and grey, like Outlook */
+.cm-mail-row.child.elsewhere,
+.cm-mail-row.child.elsewhere .g-col,
+.cm-mail-row.child.elsewhere .who,
+.cm-mail-row.child.elsewhere .subj,
+.cm-mail-row.child.elsewhere .date {
+  font-style: italic;
+  color: var(--text-muted);
+  font-weight: normal;
+}
+.cm-mail-row.child.elsewhere.selected,
+.cm-mail-row.child.elsewhere.selected .g-col {
+  color: #444;
+}

@@ -1,0 +1,286 @@
+/* Office 2007 "Blue" look. Every colour used anywhere in the app is defined here. */
+
+:root {
+  /* text */
+  --text: #000000;
+  --text-muted: #6d6d6d;
+  --text-title: #15428b; /* pane titles, dark blue */
+  --text-link: #0645ad;
+  --text-disabled: #a0a0a0;
+
+  /* window & frames */
+  --app-bg: #bfdbff;
+  --frame: #6593cf; /* main pane borders */
+  --frame-light: #9ebfe6;
+  --frame-dark: #3b6ea5;
+  --panel-bg: #ffffff;
+  --panel-alt: #f3f7fd; /* subtle alternating backgrounds */
+
+  /* gradients */
+  --grad-menubar: linear-gradient(#e7f0fc, #d4e3f9);
+  --grad-toolbar: linear-gradient(#e3efff 0%, #d5e5fb 45%, #c4daf7 46%, #cfe1fa 100%);
+  --grad-pane-header: linear-gradient(#e3efff, #c4ddff);
+  --grad-pane-title: linear-gradient(#e9f2fd 0%, #d6e6fb 50%, #c3d9f8 51%, #d0e2fa 100%);
+  --grad-column-header: linear-gradient(#ffffff, #e4ecf7);
+  --grad-group-header: linear-gradient(#f5f9ff, #e1ebf9);
+  --grad-status: linear-gradient(#dbe8fa 0%, #c9dcf7 50%, #b8d0f3 51%, #c7daf5 100%);
+  --grad-nav-button: linear-gradient(#e3efff 0%, #d0e3fd 40%, #b9d2f6 41%, #cbdffb 100%);
+  --grad-hover: linear-gradient(#fffbd9 0%, #ffe7a2 40%, #ffd86b 41%, #ffe69e 100%);
+  --grad-pressed: linear-gradient(#fdc87e 0%, #fbb05c 40%, #f99a3a 41%, #fbc16e 100%);
+  --grad-selected: linear-gradient(#ffd99c 0%, #ffbd69 40%, #ffac42 41%, #ffc672 100%);
+  --grad-button: linear-gradient(#ffffff 0%, #f1f6fd 45%, #dfeaf9 46%, #eaf2fc 100%);
+  --grad-ribbon: linear-gradient(#ffffff 0%, #e7f0fd 20%, #d3e3f9 80%, #c7dcf7 100%);
+  --grad-ribbon-tabs: linear-gradient(#dbe7f8, #c5d9f4);
+  --grad-ribbon-group-label: linear-gradient(#c2d9f6, #b2cdf1);
+  --grad-today: linear-gradient(#fff4cf, #ffe39a);
+  --grad-dialog-title: linear-gradient(#e4eefc, #c7dcf7);
+
+  --hover-border: #e3b862;
+  --pressed-border: #c28a30;
+
+  /* lists */
+  --row-selected: #c2dcfd; /* selected, list has focus */
+  --row-selected-border: #7da2ce;
+  --row-selected-inactive: #e1e1e1;
+  --row-hover: #e7f1fd;
+  --grid-line: #e2e9f3;
+  --group-text: #15428b;
+  --unread-bold: 700;
+
+  /* calendar */
+  --cal-bg: #ffffff;
+  --cal-work-hours: #ffffff;
+  --cal-off-hours: #e6edf7;
+  --cal-line-hour: #a5bfe1;
+  --cal-line-half: #d5e1f1;
+  --cal-header: #dfe8f5;
+  --cal-today-header: #f8d26d;
+  --cal-today-border: #eeb54c;
+  --cal-appt-bg: #ffffff;
+  --cal-appt-border: #5d8cc9;
+  --cal-allday-bg: #dbe6f4;
+  --cal-selection: #3a7bd5;
+  --cal-now: #ee9a1d;
+  --cal-month-other: #f2f6fb;
+
+  /* status colours */
+  --flag-red: #d63c34;
+  --flag-done: #8a8a8a;
+  --importance-high: #d63c34;
+  --info-bar: #ffffe1;
+  --info-bar-border: #d6d6a8;
+  --error-bg: #fde7e6;
+  --error-border: #e1928c;
+  --ai-bg: #f2f8ee;
+  --ai-border: #9fc28b;
+  --ai-text: #3c6b26;
+
+  /* busy states */
+  --busy-busy: #3a6fc4;
+  --busy-tentative: repeating-linear-gradient(45deg, #3a6fc4 0 3px, #ffffff 3px 6px);
+  --busy-oof: #8f4ab4;
+  --busy-free: #ffffff;
+
+  /* category / calendar colours (Outlook 2007 categories) */
+  --cat-red: #e7a1a2;
+  --cat-orange: #f9ba89;
+  --cat-yellow: #f7dd8f;
+  --cat-green: #9fdc9a;
+  --cat-blue: #a0c0ec;
+  --cat-purple: #cab3e8;
+
+  /* UI font: the new Outlook's Segoe UI Variable at 13px (custom font / size: src/ui/font.ts) */
+  --font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", sans-serif;
+  --font-size: 13px;
+  --font-size-small: 12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font);
+  font-size: var(--font-size);
+  font-weight: var(--font-weight, 400);
+  color: var(--text);
+  background: var(--app-bg);
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+
+::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+::-webkit-scrollbar-track {
+  background: #f0f4fa;
+  border-left: 1px solid #dde6f2;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #e9f1fc, #c9dbf4);
+  border: 1px solid #9ab7df;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(90deg, #fff5d6, #ffdd8a);
+  border-color: var(--hover-border);
+}
+::-webkit-scrollbar-corner {
+  background: #f0f4fa;
+}
+
+/* text inputs (Office 2007) */
+.cm-input {
+  height: 21px;
+  border: 1px solid #abc1de;
+  background: #fff;
+  padding: 1px 4px;
+  outline: none;
+}
+.cm-input:hover {
+  border-color: #7da2ce;
+}
+.cm-input:focus {
+  border-color: #5584c4;
+}
+.cm-input:disabled {
+  background: #f4f4f4;
+  color: var(--text-disabled);
+}
+textarea.cm-input {
+  height: auto;
+  resize: none;
+}
+select.cm-input {
+  padding: 0 2px;
+}
+
+/* push buttons (dialogs) */
+.cm-button {
+  min-width: 75px;
+  height: 23px;
+  padding: 0 10px;
+  border: 1px solid #8ba8d1;
+  border-radius: 3px;
+  background: var(--grad-button);
+  cursor: default;
+}
+.cm-button:hover:not(:disabled) {
+  background: var(--grad-hover);
+  border-color: var(--hover-border);
+}
+.cm-button:active:not(:disabled) {
+  background: var(--grad-pressed);
+  border-color: var(--pressed-border);
+}
+.cm-button:disabled {
+  color: var(--text-disabled);
+  border-color: #c5d3e6;
+}
+.cm-button.default {
+  border-color: #3c7fb1;
+  box-shadow: inset 0 0 0 1px #9cd2f5;
+}
+
+.cm-link {
+  color: var(--text-link);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.cm-muted {
+  color: var(--text-muted);
+}
+
+.cm-label {
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* blue pane title like "Inbox" / "Calendar" at the top of a module view */
+.cm-pane-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 8px;
+  background: var(--grad-pane-title);
+  border-bottom: 1px solid var(--frame);
+  color: var(--text-title);
+  font-size: 15px;
+  font-weight: 700;
+  flex: none;
+}
+
+.cm-pane-header {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 6px;
+  background: var(--grad-pane-header);
+  border-bottom: 1px solid var(--frame-light);
+  color: var(--text-title);
+  font-weight: 700;
+  flex: none;
+}
+
+.cm-info-bar {
+  background: var(--info-bar);
+  border: 1px solid var(--info-bar-border);
+  padding: 3px 6px;
+  font-size: var(--font-size-small);
+}
+
+.cm-error-bar {
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  padding: 3px 6px;
+}
+
+.cm-fill {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.cm-ellipsis {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cm-scroll {
+  overflow: auto;
+}
+
+.cm-empty {
+  padding: 16px;
+  color: var(--text-muted);
+  text-align: center;
+}

@@ -1,0 +1,87 @@
+/* Dialog-style windows (Account Settings, Options) */
+.cm-dlgwin {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #eef3fa;
+  padding: 8px 10px 0;
+}
+.cm-dlgwin-tabs {
+  display: flex;
+  gap: 2px;
+  flex: none;
+  position: relative;
+  z-index: 1;
+}
+.cm-dlgwin-tab {
+  padding: 4px 12px;
+  border: 1px solid #9ebfe6;
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(#f5f9ff, #dfeaf8);
+  margin-bottom: -1px;
+}
+.cm-dlgwin-tab.active {
+  background: #fff;
+  border-color: #7da2ce;
+}
+.cm-dlgwin-tab:not(.active):hover {
+  background: var(--grad-hover);
+}
+.cm-dlgwin-page {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #7da2ce;
+  padding: 12px;
+}
+.cm-acct-toolbar {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid #c3d4ea;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+}
+.cm-acct-list {
+  border: 1px solid #abc1de;
+  min-height: 140px;
+  background: #fff;
+}
+.cm-acct-row {
+  display: grid;
+  grid-template-columns: 1fr 200px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+}
+.cm-acct-row.head {
+  background: var(--grad-column-header);
+  border-bottom: 1px solid #c3d4ea;
+  color: #333;
+}
+.cm-acct-row.selected {
+  background: var(--row-selected);
+  border-color: var(--row-selected-border);
+}
+.cm-opt-section {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.cm-opt-section > .cm-opt-icon {
+  flex: none;
+  padding-top: 18px;
+}
+.cm-opt-section .cm-fieldset {
+  flex: 1;
+  margin: 0;
+}
+.cm-opt-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 5px 0;
+}
+.cm-opt-sub {
+  margin-left: 18px;
+}

@@ -1,0 +1,651 @@
+/* Widget styles (colours come from theme/office2007.css). */
+
+/* ---- menus ---------------------------------------------------------------------------------- */
+.cm-menu {
+  position: fixed;
+  z-index: 1000;
+  background: #fafafa;
+  border: 1px solid #868686;
+  box-shadow: 2px 3px 4px rgba(0, 0, 0, 0.3);
+  padding: 2px;
+  min-width: 140px;
+}
+.cm-menu-gutter {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  bottom: 2px;
+  width: 26px;
+  background: #e9eef6;
+  border-right: 1px solid #c5c5c5;
+}
+.cm-menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+.cm-menu-item.active:not(.disabled) {
+  background: var(--grad-hover);
+  border-color: var(--hover-border);
+}
+.cm-menu-item.disabled {
+  color: var(--text-disabled);
+}
+.cm-menu-item.disabled svg {
+  opacity: 0.4;
+}
+.cm-menu-item.bold {
+  font-weight: 700;
+}
+.cm-menu-icon {
+  width: 26px;
+  display: flex;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+.cm-menu-check {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fce6b2;
+  border: 1px solid #e3b862;
+}
+.cm-menu-label {
+  flex: 1;
+  padding: 0 24px 0 8px;
+}
+.cm-menu-shortcut {
+  padding-right: 6px;
+  color: #444;
+}
+.cm-menu-arrow {
+  width: 14px;
+  font-size: 10px;
+}
+.cm-menu-sep {
+  height: 1px;
+  margin: 2px 0 2px 32px;
+  background: #c5c5c5;
+  position: relative;
+  z-index: 1;
+}
+.cm-menu-header {
+  position: relative;
+  z-index: 1;
+  font-weight: 700;
+  padding: 3px 6px 3px 34px;
+  background: #dde7f4;
+  color: var(--text-title);
+}
+
+/* ---- menu bar ------------------------------------------------------------------------------- */
+.cm-menubar {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  background: var(--grad-menubar);
+  border-bottom: 1px solid #a9c3e8;
+  padding: 0 2px;
+  flex: none;
+}
+.cm-menubar-item {
+  padding: 2px 7px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+}
+.cm-menubar-item:hover,
+.cm-menubar-item.open {
+  background: var(--grad-hover);
+  border-color: var(--hover-border);
+}
+
+/* ---- toolbars ------------------------------------------------------------------------------- */
+.cm-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  min-height: 28px;
+  padding: 2px 4px;
+  background: var(--grad-toolbar);
+  border-bottom: 1px solid #93b4e0;
+  flex: none;
+  flex-wrap: wrap;
+}
+.cm-tb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  white-space: nowrap;
+}
+.cm-tb-btn:hover:not(:disabled) {
+  background: var(--grad-hover);
+  border-color: var(--hover-border);
+}
+.cm-tb-btn:active:not(:disabled),
+.cm-tb-btn.pressed {
+  background: var(--grad-pressed);
+  border-color: var(--pressed-border);
+}
+.cm-tb-btn:disabled {
+  color: var(--text-disabled);
+}
+.cm-tb-btn:disabled svg {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+.cm-tb-sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 3px;
+  background: #a9c3e8;
+  box-shadow: 1px 0 0 #fff;
+}
+.cm-tb-split {
+  display: inline-flex;
+  border: 1px solid transparent;
+  border-radius: 2px;
+}
+.cm-tb-split:hover:not(.disabled) {
+  border-color: var(--hover-border);
+}
+.cm-tb-split .cm-tb-btn {
+  border: none;
+  border-radius: 0;
+}
+.cm-tb-split .cm-tb-btn.arrow {
+  padding: 0 2px;
+  border-left: 1px solid transparent;
+}
+.cm-tb-split:hover:not(.disabled) .cm-tb-btn.arrow {
+  border-left-color: var(--hover-border);
+}
+
+/* ---- dialogs -------------------------------------------------------------------------------- */
+.cm-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cm-dialog {
+  display: flex;
+  flex-direction: column;
+  max-width: calc(100vw - 20px);
+  max-height: calc(100vh - 20px);
+  background: #eef3fa;
+  border: 1px solid #5c7fb0;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+.cm-dialog-title {
+  display: flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 4px 0 8px;
+  background: var(--grad-dialog-title);
+  border-bottom: 1px solid #9ebfe6;
+  border-radius: 4px 4px 0 0;
+  color: var(--text-title);
+  font-weight: 600;
+}
+.cm-dialog-x {
+  border: 1px solid transparent;
+  background: transparent;
+  width: 20px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+}
+.cm-dialog-x:hover {
+  background: #e0574a;
+  border-color: #a63428;
+}
+.cm-dialog-body {
+  padding: 12px;
+  overflow: auto;
+  flex: 1;
+}
+.cm-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 8px 12px 10px;
+}
+/* "Don't ask me again" at the left of a message box's buttons */
+.cm-dialog-dontask {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: auto;
+}
+
+/* form rows inside dialogs */
+.cm-form {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 8px;
+  align-items: center;
+}
+.cm-fieldset {
+  border: 1px solid #c3d4ea;
+  border-radius: 3px;
+  padding: 6px 10px 10px;
+  margin: 0 0 10px;
+}
+.cm-fieldset > legend {
+  color: var(--text-title);
+  padding: 0 4px;
+}
+
+/* ---- splitter ------------------------------------------------------------------------------- */
+.cm-splitter {
+  flex: none;
+  background: var(--app-bg);
+  z-index: 2;
+}
+.cm-splitter.vertical {
+  width: 5px;
+  cursor: col-resize;
+}
+.cm-splitter.horizontal {
+  height: 5px;
+  cursor: row-resize;
+}
+
+/* ---- tree ----------------------------------------------------------------------------------- */
+.cm-tree {
+  padding: 2px 0;
+}
+.cm-tree:focus {
+  outline: none;
+}
+.cm-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+  padding-right: 6px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.cm-tree-row:hover {
+  background: var(--row-hover);
+}
+.cm-tree-row.selected {
+  background: var(--row-selected);
+  border-color: var(--row-selected-border);
+}
+/* press-and-hold reordering */
+.cm-tree-row.lifted {
+  position: relative;
+  z-index: 5;
+  background: #fff;
+  border-color: var(--frame);
+  box-shadow: 0 3px 8px rgba(21, 66, 139, 0.35);
+  cursor: grabbing;
+}
+.cm-tree-row.insert-before {
+  box-shadow: inset 0 2px 0 #1c4ed8;
+}
+.cm-tree-row.insert-after {
+  box-shadow: inset 0 -2px 0 #1c4ed8;
+}
+.cm-tree.reordering .cm-tree-row:not(.lifted):hover {
+  background: transparent;
+}
+.cm-tree-row.drop {
+  background: var(--grad-hover);
+  border-color: var(--hover-border);
+}
+.cm-tree-toggle {
+  width: 12px;
+  display: flex;
+  justify-content: center;
+  flex: none;
+}
+.cm-tree-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cm-tree-label.bold {
+  font-weight: 700;
+}
+.cm-tree-count {
+  color: #1c4ed8;
+  font-weight: 700;
+  margin-left: 3px;
+}
+.cm-tree-swatch {
+  width: 10px;
+  height: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  flex: none;
+}
+
+/* ---- date navigator ------------------------------------------------------------------------- */
+.cm-datenav {
+  padding: 2px 4px 4px;
+  background: #fff;
+}
+.cm-datenav-month + .cm-datenav-month {
+  margin-top: 6px;
+}
+.cm-datenav-head {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  height: 20px;
+  background: var(--grad-pane-header);
+  border: 1px solid #c1d4ef;
+  color: var(--text-title);
+  font-weight: 700;
+}
+.cm-datenav-arrow {
+  width: 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-title);
+  font-size: 12px;
+  padding: 0;
+}
+button.cm-datenav-arrow:hover {
+  color: #000;
+}
+.cm-datenav-grid {
+  display: grid;
+  grid-template-columns: 6px repeat(7, 1fr);
+  font-size: 11px;
+  text-align: center;
+}
+.cm-datenav-dow {
+  color: #333;
+  border-bottom: 1px solid #a9c3e8;
+  padding: 2px 0 1px;
+}
+.cm-datenav-wk {
+  cursor: pointer;
+}
+.cm-datenav-day {
+  height: 17px;
+  line-height: 15px;
+  border: 1px solid transparent;
+}
+.cm-datenav-day:hover {
+  background: var(--row-hover);
+}
+.cm-datenav-day.other {
+  color: #9a9a9a;
+}
+.cm-datenav-day.bold {
+  font-weight: 700;
+}
+.cm-datenav-day.sel {
+  background: #c2dcfd;
+}
+.cm-datenav-day.today {
+  border-color: #d63c34;
+}
+.cm-datenav.compact .cm-datenav-day {
+  height: 15px;
+  line-height: 13px;
+}
+
+/* ---- ribbon --------------------------------------------------------------------------------- */
+.cm-ribbon {
+  flex: none;
+  /* a ribbon wider than the window is clipped on the right, never scrolls the window sideways */
+  min-width: 0;
+  overflow: hidden;
+  background: var(--grad-ribbon-tabs);
+  border-bottom: 1px solid #8db2e3;
+}
+.cm-ribbon-tabs {
+  display: flex;
+  align-items: flex-end;
+  height: 30px;
+  padding-left: 4px;
+}
+.cm-ribbon-orb {
+  width: 30px;
+  height: 30px;
+  margin: 0 6px 0 2px;
+  border-radius: 50%;
+  border: 1px solid #7a95b9;
+  background: radial-gradient(circle at 50% 35%, #ffffff 0%, #d7e6fa 45%, #9fbfe8 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+}
+.cm-ribbon-orb:hover {
+  background: radial-gradient(circle at 50% 35%, #fffbe2 0%, #ffe39a 45%, #f7b64b 100%);
+}
+.cm-ribbon-qat {
+  display: flex;
+  align-self: center;
+  margin-right: 10px;
+}
+.cm-ribbon-tab {
+  padding: 3px 14px 4px;
+  margin-right: 2px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+  color: var(--text-title);
+}
+.cm-ribbon-tab:hover {
+  border-color: #b0c8ea;
+  background: rgba(255, 255, 255, 0.4);
+}
+.cm-ribbon-tab.active {
+  background: #fff;
+  border-color: #8db2e3;
+  margin-bottom: -1px;
+  position: relative;
+  z-index: 1;
+}
+.cm-ribbon-body {
+  display: flex;
+  height: 92px;
+  padding: 3px;
+  gap: 3px;
+  background: var(--grad-ribbon);
+  border-top: 1px solid #8db2e3;
+}
+/* groups and big buttons keep their width: a narrow window cuts the ribbon off at the right rather
+   than squeezing labels ("Propose New Time ▾") onto lines the button has no room for */
+.cm-ribbon-group {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #a7c3e8;
+  border-radius: 3px;
+  background: linear-gradient(#eef4fd, #d9e7f9);
+}
+.cm-ribbon-group-content {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  padding: 2px 3px 0;
+  gap: 2px;
+}
+.cm-ribbon-group-label {
+  height: 16px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-title);
+  background: var(--grad-ribbon-group-label);
+  border-radius: 0 0 2px 2px;
+  padding: 0 6px;
+  white-space: nowrap;
+}
+.cm-rb-big {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  min-width: 46px;
+  max-width: 70px;
+  height: 68px;
+  padding: 3px 3px 0;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  font-size: 11px;
+  line-height: 1.15;
+  text-align: center;
+}
+.cm-rb-small {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+  padding: 0 3px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  white-space: nowrap;
+}
+.cm-rb-big:hover:not(:disabled),
+.cm-rb-small:hover:not(:disabled) {
+  background: var(--grad-hover);
+  border-color: var(--hover-border);
+}
+.cm-rb-big:active:not(:disabled),
+.cm-rb-small:active:not(:disabled),
+.cm-rb-big.pressed,
+.cm-rb-small.pressed {
+  background: var(--grad-pressed);
+  border-color: var(--pressed-border);
+}
+.cm-rb-big:disabled,
+.cm-rb-small:disabled {
+  color: var(--text-disabled);
+}
+.cm-rb-big:disabled svg,
+.cm-rb-small:disabled svg {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+.cm-rb-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.cm-rb-row {
+  display: flex;
+  gap: 1px;
+  align-items: center;
+}
+
+/* an attachment is downloading */
+body.cm-busy,
+body.cm-busy * {
+  cursor: progress !important;
+}
+
+/* message zoom level, shown for a moment after Ctrl + mouse wheel (ui/zoom.ts) */
+.cm-zoom-badge {
+  position: fixed;
+  left: 50%;
+  bottom: 48px;
+  transform: translateX(-50%);
+  padding: 4px 14px;
+  border-radius: 4px;
+  background: rgba(32, 50, 82, 0.88);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 10000;
+}
+.cm-zoom-badge.show {
+  opacity: 1;
+}
+
+/* ---- tabs above a message's text: Message / HTML Source / Original Message, Markdown / Preview */
+.cm-body-tabs {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 3px 8px 0;
+  background: var(--panel-bg);
+  border-bottom: 1px solid #a7c3e8;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.cm-body-tabs > button[role="tab"] {
+  padding: 3px 12px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.cm-body-tabs > button[role="tab"]:hover {
+  background: var(--grad-hover);
+}
+.cm-body-tabs > button[role="tab"].on {
+  background: #fff;
+  border-color: #a7c3e8;
+  margin-bottom: -1px;
+  padding-bottom: 4px;
+}
+.cm-body-tabs > .cm-button {
+  margin: 0 0 3px 4px;
+  min-height: 20px;
+  padding: 0 8px;
+}
+.cm-body-tabs-close {
+  margin: 0 0 3px 6px;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-muted, #555);
+}
+.cm-body-tabs-close:hover {
+  color: #c00;
+}
+/* the source itself: code, as it is, editable while writing */
+.cm-source-view,
+.cm-compose-source {
+  flex: 1;
+  width: 100%;
+  min-height: 200px;
+  padding: 8px 12px;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 9.5pt;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  background: #fff;
+}

@@ -1,0 +1,4 @@
+# Build output outside the source folder, so a checkout in Google Drive / OneDrive doesn't sync it.
+# To build elsewhere, set the CARGO_TARGET_DIR environment variable: Cargo prefers it over this.
+[build]
+target-dir = "C:/dev/outlook_build/target"

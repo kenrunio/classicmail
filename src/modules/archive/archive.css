@@ -1,0 +1,44 @@
+/* Outlook archives (.pst). Colours only from theme/office2007.css. */
+
+.cm-archive-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 3px 6px;
+  font-size: var(--font-size-small);
+  background: var(--info-bar);
+  border-bottom: 1px solid var(--info-bar-border);
+  flex: none;
+}
+
+.cm-archive-props {
+  border-collapse: collapse;
+  width: 100%;
+}
+.cm-archive-props td {
+  padding: 3px 8px 3px 0;
+  vertical-align: top;
+  word-break: break-all;
+}
+.cm-archive-props td:first-child {
+  white-space: nowrap;
+  color: var(--text-title);
+  width: 1%;
+  word-break: normal;
+}
+.cm-archive-props-note {
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: var(--font-size-small);
+}
+
+.cm-archive-headers {
+  max-width: 640px;
+  max-height: 400px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: var(--font-size-small);
+  user-select: text;
+}

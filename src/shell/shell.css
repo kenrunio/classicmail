@@ -1,0 +1,316 @@
+/* Main window layout */
+.cm-main {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--app-bg);
+}
+.cm-toolbar-row {
+  flex: none;
+}
+.cm-main-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  padding: 4px 4px 0;
+}
+.cm-navpane-wrap,
+.cm-todobar-wrap {
+  flex: none;
+  display: flex;
+  min-height: 0;
+}
+/* minimized To-Do Bar: a thin strip at the right edge */
+.cm-todobar-min {
+  flex: none;
+  width: 26px;
+  margin-left: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3px 0;
+  gap: 2px;
+  border: 1px solid var(--frame);
+  background: var(--grad-nav-button);
+}
+.cm-todobar-min .cm-navpane-vertical-title {
+  cursor: pointer;
+}
+.cm-module-view {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--frame);
+  background: var(--panel-bg);
+}
+.cm-helpbox {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 4px;
+}
+
+/* ---- navigation pane ------------------------------------------------------------------------ */
+.cm-navpane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--frame);
+  background: #fff;
+}
+.cm-navpane-title {
+  display: flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 4px 0 6px;
+  background: var(--grad-pane-title);
+  border-bottom: 1px solid var(--frame);
+  color: var(--text-title);
+  font-size: 14px;
+  font-weight: 700;
+}
+.cm-navpane-collapse,
+.cm-navpane-expand {
+  border: 1px solid transparent;
+  background: transparent;
+  width: 20px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+}
+.cm-navpane-collapse:hover,
+.cm-navpane-expand:hover {
+  background: var(--grad-hover);
+  border-color: var(--hover-border);
+}
+.cm-navpane-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+.cm-navpane-buttons {
+  flex: none;
+  border-top: 1px solid var(--frame);
+}
+.cm-navpane-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  border: none;
+  border-bottom: 1px solid #9ebfe6;
+  background: var(--grad-nav-button);
+  font-weight: 700;
+  color: var(--text-title);
+  text-align: left;
+}
+.cm-navpane-btn:hover {
+  background: var(--grad-hover);
+}
+.cm-navpane-btn.selected {
+  background: var(--grad-selected);
+}
+.cm-navpane-btn.selected:hover {
+  background: var(--grad-pressed);
+}
+.cm-navpane-smallrow {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 4px;
+  background: var(--grad-nav-button);
+}
+.cm-navpane-small,
+.cm-navpane-mini {
+  width: 26px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 2px;
+}
+.cm-navpane-small:hover,
+.cm-navpane-mini:hover {
+  background: var(--grad-hover);
+  border-color: var(--hover-border);
+}
+.cm-navpane-small.selected,
+.cm-navpane-mini.selected {
+  background: var(--grad-selected);
+  border-color: var(--pressed-border);
+}
+.cm-navpane.collapsed {
+  align-items: center;
+  padding: 3px 0;
+  background: var(--grad-nav-button);
+  gap: 2px;
+}
+.cm-navpane-vertical-title {
+  writing-mode: vertical-rl;
+  color: var(--text-title);
+  font-weight: 700;
+  font-size: 13px;
+  margin-top: 8px;
+}
+/* section header inside the nav pane ("Favorite Folders", "Mail Folders", "My Calendars") */
+.cm-nav-section {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 6px;
+  background: var(--grad-pane-header);
+  border-bottom: 1px solid #c1d4ef;
+  border-top: 1px solid #fff;
+  color: var(--text-title);
+  font-weight: 700;
+  flex: none;
+}
+.cm-nav-section + .cm-tree {
+  border-bottom: 1px solid #e3ebf6;
+}
+.cm-nav-link {
+  display: block;
+  padding: 3px 10px;
+  color: var(--text-link);
+  cursor: pointer;
+}
+.cm-nav-link:hover {
+  text-decoration: underline;
+}
+
+/* ---- status bar ----------------------------------------------------------------------------- */
+.cm-statusbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 22px;
+  padding: 0 8px;
+  margin-top: 4px;
+  background: var(--grad-status);
+  border-top: 1px solid #8eaedc;
+  font-size: 11px;
+  flex: none;
+}
+.cm-statusbar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 60%;
+}
+.cm-statusbar-right.error {
+  color: #9c1c12;
+  cursor: pointer;
+}
+.cm-progress {
+  width: 120px;
+  height: 11px;
+  border: 1px solid #7da2ce;
+  background: #fff;
+}
+.cm-progress > div {
+  height: 100%;
+  background: linear-gradient(#b5e6a0, #4fb33c);
+}
+
+/* ---- first run ------------------------------------------------------------------------------ */
+.cm-firstrun {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--app-bg);
+}
+.cm-firstrun-box {
+  width: 560px;
+  background: #fff;
+  border: 1px solid var(--frame);
+  padding: 20px 24px 12px;
+  box-shadow: 0 4px 18px rgba(21, 66, 139, 0.25);
+}
+.cm-firstrun-head {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.cm-firstrun-title {
+  font-size: 20px;
+  color: var(--text-title);
+  font-weight: 600;
+}
+
+/* ---- item windows (compose, appointment, ...) share this frame ------------------------------ */
+.cm-itemwin {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #fff;
+}
+.cm-itemwin-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* header area under the ribbon (To/Cc/Subject, Subject/Location/Start/End...) */
+.cm-itemwin-fields {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 4px 6px;
+  align-items: center;
+  padding: 8px 10px;
+  background: linear-gradient(#f7faff, #e8f0fb);
+  border-bottom: 1px solid #b6cbe8;
+  flex: none;
+}
+.cm-field-label-btn {
+  height: 23px;
+  border: 1px solid #8ba8d1;
+  border-radius: 2px;
+  background: var(--grad-button);
+  text-align: left;
+  padding: 0 6px;
+}
+.cm-field-label-btn:hover {
+  background: var(--grad-hover);
+  border-color: var(--hover-border);
+}
+
+/* Help › Privacy Policy (docs/privacy-policy.md in a message box, whose text is pre-wrap) */
+.cm-privacy-policy {
+  white-space: normal;
+}
+.cm-privacy-policy h1 {
+  font-size: 15px;
+  margin: 0 0 4px;
+}
+.cm-privacy-policy h2 {
+  font-size: 13px;
+  margin: 14px 0 4px;
+}
+.cm-privacy-policy p,
+.cm-privacy-policy ul {
+  margin: 4px 0;
+}
+.cm-privacy-policy table {
+  border-collapse: collapse;
+  margin: 6px 0;
+}
+.cm-privacy-policy th,
+.cm-privacy-policy td {
+  border: 1px solid var(--cm-border, #c5d3e5);
+  padding: 3px 6px;
+  vertical-align: top;
+  text-align: left;
+}

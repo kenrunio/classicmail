@@ -1,0 +1,11 @@
+# Every text file is stored with LF line endings (the repo had a mix of CRLF and LF).
+* text=auto eol=lf
+# ...except Windows batch files, which cmd.exe needs with CRLF
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.png binary
+*.ico binary
+*.icns binary
+*.exe binary
+*.pst binary
+*.xlsx binary

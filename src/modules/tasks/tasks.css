@@ -1,0 +1,551 @@
+/* Tasks module, To-Do Bar and task window (colours come from theme/office2007.css). */
+
+/* ---- navigation pane ------------------------------------------------------------------------ */
+.cm-tasks-nav {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.cm-tasks-views {
+  display: flex;
+  flex-direction: column;
+  padding: 3px 8px 6px;
+}
+.cm-tasks-viewradio {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  white-space: nowrap;
+}
+.cm-tasks-viewradio input {
+  margin: 0;
+  accent-color: #3c6fb5;
+}
+.cm-tasks-navlinks {
+  padding: 4px 0 6px;
+  border-top: 1px solid #e3ebf6;
+}
+
+/* ---- pane title / instant search ------------------------------------------------------------ */
+.cm-tasks-titleview {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--text-title);
+}
+.cm-tasks-search {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: 230px;
+  height: 22px;
+  padding: 0 4px 0 0;
+  border: 1px solid #abc1de;
+  background: #fff;
+  font-weight: 400;
+  font-size: 12px;
+}
+.cm-tasks-search.active {
+  background: var(--info-bar);
+  border-color: var(--hover-border);
+}
+.cm-tasks-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 0 5px;
+  color: var(--text);
+}
+.cm-tasks-search input::placeholder {
+  color: #8a8a8a;
+  font-style: italic;
+}
+.cm-tasks-search button {
+  border: none;
+  background: transparent;
+  padding: 2px;
+  display: flex;
+}
+.cm-tasks-searchbar {
+  padding: 3px 8px;
+  background: var(--info-bar);
+  border-bottom: 1px solid var(--info-bar-border);
+  font-size: var(--font-size-small);
+  flex: none;
+}
+
+/* ---- table ---------------------------------------------------------------------------------- */
+.cm-tasks-table {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-bg);
+}
+.cm-tasks-head {
+  display: grid;
+  flex: none;
+  height: 20px;
+  background: var(--grad-column-header);
+  border-bottom: 1px solid #a5bcdc;
+  padding-right: 16px; /* scrollbar */
+}
+.cm-tasks-th {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 5px;
+  border-right: 1px solid #c5d5ea;
+  color: #1e395b;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.cm-tasks-th.glyph {
+  justify-content: center;
+  padding: 0;
+}
+.cm-tasks-th:hover {
+  background: var(--grad-hover);
+}
+.cm-tasks-th.sorted {
+  background: linear-gradient(#f2f7ff, #d7e6fa);
+}
+.cm-tasks-th-bang {
+  font-weight: 700;
+  color: #333;
+}
+.cm-tasks-sortarrow {
+  margin-left: auto;
+  font-size: 8px;
+  color: #6d8fbf;
+}
+.cm-tasks-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  outline: none;
+}
+.cm-tasks-row,
+.cm-tasks-addrow {
+  display: grid;
+  height: 21px;
+  align-items: center;
+  border-bottom: 1px solid var(--grid-line);
+}
+.cm-tasks-row:hover {
+  background: var(--row-hover);
+}
+.cm-tasks-row.selected {
+  background: var(--row-selected-inactive);
+}
+.cm-tasks-body:focus .cm-tasks-row.selected {
+  background: var(--row-selected);
+}
+.cm-tasks-row.overdue {
+  color: var(--importance-high);
+}
+.cm-tasks-row.done .col-subject,
+.cm-tasks-row.done .col-due,
+.cm-tasks-row.done .col-start,
+.cm-tasks-row.done .col-status {
+  text-decoration: line-through;
+  color: #808080;
+}
+.cm-tasks-row.drop-before {
+  box-shadow: inset 0 2px 0 #1d4f91;
+}
+.cm-tasks-row.drop-after {
+  box-shadow: inset 0 -2px 0 #1d4f91;
+}
+.cm-tasks-td {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 100%;
+  padding: 0 5px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.cm-tasks-td.glyph {
+  justify-content: center;
+  padding: 0;
+}
+.cm-tasks-red {
+  color: var(--importance-high);
+}
+.cm-tasks-check,
+.cm-tasks-flag {
+  display: flex;
+  padding: 2px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+}
+.cm-tasks-check:hover,
+.cm-tasks-flag:hover {
+  border-color: var(--hover-border);
+  background: var(--grad-hover);
+}
+.cm-tasks-bell {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+.cm-tasks-addrow {
+  background: #f3f7fd;
+  border-bottom: 1px solid #c5d5ea;
+}
+.cm-tasks-addrow.editing {
+  background: #fff;
+}
+.cm-tasks-addhint {
+  color: #7f8fa8;
+}
+.cm-tasks-cellinput {
+  width: 100%;
+  height: 19px;
+  border-color: #7da2ce;
+}
+.cm-tasks-celldate {
+  height: 19px;
+}
+.cm-tasks-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 6px;
+  border-bottom: 1px solid #a5bcdc;
+  background: var(--grad-group-header);
+  color: var(--group-text);
+  font-weight: 700;
+}
+.cm-tasks-group-toggle {
+  width: 11px;
+  height: 11px;
+  line-height: 9px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 400;
+  border: 1px solid #8ba4c8;
+  background: #fff;
+  color: #333;
+}
+.cm-tasks-group-count {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.cm-tasks-empty {
+  padding: 18px 10px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.cm-tasks-cats,
+.cm-tasks-catboxes {
+  display: inline-flex;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+}
+.cm-tasks-cat {
+  padding: 0 4px;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  border-radius: 2px;
+  font-size: 11px;
+  line-height: 14px;
+  color: #222;
+  white-space: nowrap;
+}
+.cm-tasks-catbox {
+  width: 11px;
+  height: 11px;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+/* ---- date picker ---------------------------------------------------------------------------- */
+.cm-tasks-datepick {
+  display: inline-flex;
+  height: 21px;
+}
+.cm-tasks-datepick input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+.cm-tasks-datepick-btn {
+  width: 16px;
+  border: 1px solid #abc1de;
+  border-left: none;
+  background: var(--grad-button);
+  font-size: 9px;
+  padding: 0;
+}
+.cm-tasks-datepick-btn:hover:not(:disabled) {
+  background: var(--grad-hover);
+  border-color: var(--hover-border);
+}
+.cm-tasks-bad {
+  border-color: var(--error-border) !important;
+  background: var(--error-bg) !important;
+}
+.cm-tasks-dropcal {
+  position: fixed;
+  z-index: 950;
+  width: 190px;
+  background: #fff;
+  border: 1px solid #868686;
+  box-shadow: 2px 3px 4px rgba(0, 0, 0, 0.3);
+}
+.cm-tasks-dropcal-foot {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 0 6px;
+  border-top: 1px solid #dde6f2;
+}
+.cm-tasks-dropcal-foot .cm-button {
+  min-width: 56px;
+  height: 21px;
+}
+
+/* ---- To-Do Bar ------------------------------------------------------------------------------ */
+.cm-todo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--frame);
+  background: #fff;
+}
+.cm-todo-title {
+  display: flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 4px 0 6px;
+  background: var(--grad-pane-title);
+  border-bottom: 1px solid var(--frame);
+  color: var(--text-title);
+  font-size: 14px;
+  font-weight: 700;
+  flex: none;
+}
+.cm-todo-close {
+  border: 1px solid transparent;
+  background: transparent;
+  width: 20px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+}
+.cm-todo-close:hover {
+  background: var(--grad-hover);
+  border-color: var(--hover-border);
+}
+.cm-todo-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cm-todo-datenav {
+  flex: none;
+  border-bottom: 1px solid #c1d4ef;
+}
+.cm-todo-appts {
+  flex: none;
+  border-bottom: 1px solid #c1d4ef;
+  padding: 2px 0 4px;
+  max-height: 40%;
+  overflow-y: auto;
+}
+.cm-todo-day {
+  padding: 3px 6px 1px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-title);
+}
+.cm-todo-appt {
+  margin: 1px 4px 2px;
+  padding: 2px 5px 2px 7px;
+  border: 1px solid #b6c9e6;
+  border-left: 4px solid var(--cal-appt-border);
+  border-radius: 2px;
+  background: linear-gradient(#ffffff, #eef4fc);
+  cursor: default;
+}
+.cm-todo-appt:hover {
+  border-color: var(--hover-border);
+  background: var(--grad-hover);
+}
+.cm-todo-appt-subject {
+  font-weight: 700;
+}
+.cm-todo-appt-meta {
+  font-size: 11px;
+  color: #444;
+}
+.cm-todo-empty {
+  padding: 6px 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.cm-todo-tasks {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cm-todo-arranged {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 6px;
+  background: var(--grad-pane-header);
+  border-bottom: 1px solid #c1d4ef;
+  color: var(--text-title);
+  font-weight: 700;
+  font-size: 11px;
+  flex: none;
+}
+.cm-todo-new {
+  flex: none;
+  padding: 3px 4px;
+  border-bottom: 1px solid #dde6f2;
+}
+.cm-todo-new input {
+  width: 100%;
+  height: 20px;
+  border: 1px solid #c5d5ea;
+  padding: 0 4px;
+  outline: none;
+}
+.cm-todo-new input:focus {
+  border-color: #5584c4;
+}
+.cm-todo-new input::placeholder {
+  color: #8a8a8a;
+}
+.cm-todo-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  outline: none;
+}
+.cm-todo-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 5px;
+  border-bottom: 1px solid #c1d4ef;
+  background: var(--grad-group-header);
+  color: var(--group-text);
+  font-weight: 700;
+  font-size: 11px;
+}
+.cm-todo-group.drop {
+  background: var(--grad-hover);
+}
+.cm-todo-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 21px;
+  padding: 0 3px 0 5px;
+  border-bottom: 1px solid var(--grid-line);
+}
+.cm-todo-item:hover {
+  background: var(--row-hover);
+}
+.cm-todo-item.selected {
+  background: var(--row-selected-inactive);
+}
+.cm-todo-list:focus .cm-todo-item.selected {
+  background: var(--row-selected);
+}
+.cm-todo-item.overdue .cm-todo-item-title {
+  color: var(--importance-high);
+}
+.cm-todo-item.done .cm-todo-item-title {
+  text-decoration: line-through;
+  color: #808080;
+}
+.cm-todo-item-title {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- task window ---------------------------------------------------------------------------- */
+.cm-taskwin-info {
+  padding: 3px 10px;
+  background: var(--info-bar);
+  border-bottom: 1px solid var(--info-bar-border);
+  font-size: var(--font-size-small);
+  flex: none;
+}
+.cm-taskwin-info.overdue {
+  color: #9c1c12;
+}
+.cm-taskwin-fields {
+  display: grid;
+  grid-template-columns: 76px 160px 18px 90px minmax(150px, 1fr);
+  gap: 5px 6px;
+  align-items: center;
+  padding: 8px 10px 8px;
+  background: linear-gradient(#f7faff, #e8f0fb);
+  border-bottom: 1px solid #b6cbe8;
+  flex: none;
+}
+.cm-taskwin-fields .wide {
+  grid-column: 2 / -1;
+}
+.cm-taskwin-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cm-taskwin-reminder {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.cm-taskwin-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+}
+.cm-taskwin-notes {
+  flex: 1;
+  width: 100%;
+  border: 1px solid #c5d5ea;
+  padding: 6px;
+  font: inherit;
+  resize: none;
+  outline: none;
+  unicode-bidi: plaintext;
+}
+.cm-taskwin-notes:focus {
+  border-color: #7da2ce;
+}
+.cm-taskwin-statusline {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  background: var(--grad-status);
+  border-top: 1px solid #8eaedc;
+  font-size: 11px;
+  flex: none;
+}
+.cm-taskwin-percent {
+  width: 64px;
+}

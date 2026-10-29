@@ -1,0 +1,66 @@
+/* AI features: Translate bar, Options › AI. */
+
+.cm-ai-bar {
+  flex-wrap: wrap;
+  row-gap: 0;
+}
+.cm-ai-link {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: none;
+  color: var(--text-link);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+.cm-ai-link:hover {
+  color: var(--text);
+}
+.cm-ai-sep {
+  color: var(--text-muted);
+}
+.cm-ai-error {
+  color: var(--text);
+}
+
+.cm-ai-status {
+  margin-top: 8px;
+  padding: 4px 6px;
+  border: 1px solid var(--frame-light);
+  background: var(--panel-alt);
+}
+.cm-ai-status.ok {
+  background: var(--ai-bg);
+  border-color: var(--ai-border);
+  color: var(--ai-text);
+}
+.cm-ai-status.bad {
+  background: var(--error-bg);
+  border-color: var(--error-border);
+}
+.cm-ai-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.cm-ai-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 4px 1px 6px;
+  background: var(--panel-alt);
+  border: 1px solid var(--frame-light);
+  border-radius: 2px;
+}
+.cm-ai-chip button {
+  border: 0;
+  background: none;
+  padding: 0 2px;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.cm-ai-chip button:hover {
+  color: var(--text);
+}
