@@ -94,9 +94,10 @@ function TodoDateNav({ months }: { months: number }) {
         compact
         onSelect={(d) => {
           // like Outlook: clicking a date opens the Calendar on that day (set the calendar's state
-          // directly — the Calendar view isn't mounted yet when coming from another module)
-          useCal.getState().goTo(startOfDay(d).getTime(), "day");
+          // directly — the Calendar view isn't mounted yet when coming from another module). The
+          // switch comes first: it puts the Calendar on this week (calendar/state.ts).
           useShell.getState().setModule("calendar");
+          useCal.getState().goTo(startOfDay(d).getTime(), "day");
         }}
       />
     </div>

@@ -5,6 +5,7 @@ import { useRpc } from "../../api/query";
 import type { ViewKind } from "./dates";
 import { dayStart } from "./dates";
 import type { Arrangement } from "./layout";
+import { useShell } from "../../shell/store";
 
 export type MonthDetail = "low" | "medium" | "high";
 
@@ -38,12 +39,14 @@ interface CalState {
   set: (p: Partial<Omit<CalState, "set">>) => void;
   setView: (v: ViewKind) => void;
   goTo: (day: number, view?: ViewKind) => void;
+  /** the Week view on this week, as the Calendar opens */
+  showThisWeek: () => void;
 }
 
 export const useCal = create<CalState>()(
   persist(
     (set) => ({
-      view: "workweek",
+      view: "week",
       anchor: dayStart(Date.now()).getTime(),
       customDays: 0,
       monthDetail: "high",
@@ -56,14 +59,26 @@ export const useCal = create<CalState>()(
       set: (p) => set(p),
       setView: (view) => set({ view, customDays: 0, listMode: "none", search: "" }),
       goTo: (day, view) => set((s) => ({ anchor: dayStart(day).getTime(), view: view ?? s.view, customDays: view ? 0 : s.customDays, listMode: "none" })),
+      showThisWeek: () => set({ view: "week", anchor: dayStart(Date.now()).getTime(), customDays: 0, listMode: "none", search: "", selection: null }),
     }),
     {
       name: "cm:calendar",
-      // the anchor resets to today on each start, like Outlook
-      partialize: (s) => ({ view: s.view, monthDetail: s.monthDetail, arrangement: s.arrangement, overlaid: s.overlaid }),
+      // the Calendar always opens on this week (below), so neither the view nor the day is kept
+      partialize: (s) => ({ monthDetail: s.monthDetail, arrangement: s.arrangement, overlaid: s.overlaid }),
+      version: 1,
+      migrate: (old) => {
+        const { view: _view, ...rest } = (old ?? {}) as Record<string, unknown>;
+        return rest as unknown as CalState;
+      },
     },
   ),
 );
+
+// Clicking Calendar (Navigation Pane, Go menu, Ctrl+2) shows this week in the Week view. A date
+// clicked in the To-Do Bar switches first, then goes to its day.
+useShell.subscribe((s, prev) => {
+  if (s.module === "calendar" && prev.module !== "calendar") useCal.getState().showThisWeek();
+});
 
 export interface CalSettings {
   workDays: number[];
