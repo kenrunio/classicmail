@@ -674,7 +674,7 @@ dependencies = [
 
 [[package]]
 name = "classicmail"
-version = "1.24.1"
+version = "1.24.2"
 dependencies = [
  "ammonia",
  "anyhow",

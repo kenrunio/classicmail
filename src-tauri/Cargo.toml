@@ -1,6 +1,6 @@
 [package]
 name = "classicmail"
-version = "1.24.1"
+version = "1.24.2"
 description = "ClassicMail — a desktop client for Google Workspace and Gmail in the classic Outlook style"
 authors = ["Kenny Green <info@duvz.com>"]
 license = "Apache-2.0"
