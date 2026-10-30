@@ -39,14 +39,14 @@ interface CalState {
   set: (p: Partial<Omit<CalState, "set">>) => void;
   setView: (v: ViewKind) => void;
   goTo: (day: number, view?: ViewKind) => void;
-  /** the Week view on this week, as the Calendar opens */
+  /** the work week view on this week, as the Calendar opens */
   showThisWeek: () => void;
 }
 
 export const useCal = create<CalState>()(
   persist(
     (set) => ({
-      view: "week",
+      view: "workweek",
       anchor: dayStart(Date.now()).getTime(),
       customDays: 0,
       monthDetail: "high",
@@ -59,7 +59,7 @@ export const useCal = create<CalState>()(
       set: (p) => set(p),
       setView: (view) => set({ view, customDays: 0, listMode: "none", search: "" }),
       goTo: (day, view) => set((s) => ({ anchor: dayStart(day).getTime(), view: view ?? s.view, customDays: view ? 0 : s.customDays, listMode: "none" })),
-      showThisWeek: () => set({ view: "week", anchor: dayStart(Date.now()).getTime(), customDays: 0, listMode: "none", search: "", selection: null }),
+      showThisWeek: () => set({ view: "workweek", anchor: dayStart(Date.now()).getTime(), customDays: 0, listMode: "none", search: "", selection: null }),
     }),
     {
       name: "cm:calendar",
@@ -74,7 +74,7 @@ export const useCal = create<CalState>()(
   ),
 );
 
-// Clicking Calendar (Navigation Pane, Go menu, Ctrl+2) shows this week in the Week view. A date
+// Clicking Calendar (Navigation Pane, Go menu, Ctrl+2) shows this work week. A date
 // clicked in the To-Do Bar switches first, then goes to its day.
 useShell.subscribe((s, prev) => {
   if (s.module === "calendar" && prev.module !== "calendar") useCal.getState().showThisWeek();

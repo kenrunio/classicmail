@@ -4,13 +4,13 @@ import { dayStart } from "./dates";
 import { useCal } from "./state";
 
 describe("opening the Calendar", () => {
-  it("shows this week in the Week view, wherever it was left", () => {
+  it("shows this work week, wherever it was left", () => {
     useShell.getState().setModule("calendar");
     useCal.getState().goTo(Date.UTC(2025, 0, 15), "month");
     useCal.getState().set({ search: "board" });
     useShell.getState().setModule("mail");
     useShell.getState().setModule("calendar");
-    expect(useCal.getState()).toMatchObject({ view: "week", anchor: dayStart(Date.now()).getTime(), search: "" });
+    expect(useCal.getState()).toMatchObject({ view: "workweek", anchor: dayStart(Date.now()).getTime(), search: "" });
   });
 
   it("a date picked in the To-Do Bar still opens that day", () => {

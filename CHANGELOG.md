@@ -4,7 +4,7 @@ What changed in each ClassicMail version, newest first. Installers are built wit
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
 ## Unreleased
-- **Calendar opens on this week in the Week view** each time you click Calendar (Navigation Pane,
+- **Calendar opens on this work week** each time you click Calendar (Navigation Pane,
   Go menu or Ctrl+2), wherever you left it. A date clicked in the To-Do Bar still opens that day.
 
 ## 1.24.1 — 2026-10-29
