@@ -43,6 +43,11 @@ const PUBLIC_MAIL: &[&str] = &[
     "walla.co.il",
 ];
 
+/// Your own domains (those of your addresses; webmail ones never), lower-case.
+pub fn own_domains(own: &HashSet<String>) -> HashSet<String> {
+    own.iter().filter_map(|e| domain(e)).filter(|d| !PUBLIC_MAIL.contains(&d.as_str())).collect()
+}
+
 fn domain(email: &str) -> Option<String> {
     let d = email.trim().rsplit_once('@')?.1.trim().trim_end_matches('>').to_lowercase();
     (!d.is_empty() && d.contains('.')).then_some(d)
@@ -50,7 +55,7 @@ fn domain(email: &str) -> Option<String> {
 
 /// The other party's domain (see the module comment), or None when it can't be told.
 pub fn other_party_domain(from: &str, to: &[String], cc: &[String], own: &HashSet<String>) -> Option<String> {
-    let own_domains: HashSet<String> = own.iter().filter_map(|e| domain(e)).filter(|d| !PUBLIC_MAIL.contains(&d.as_str())).collect();
+    let own_domains = own_domains(own);
     let mine = |e: &str| own.contains(&e.trim().to_lowercase()) || domain(e).is_some_and(|d| own_domains.contains(&d));
     let others = |list: &[String]| list.iter().filter(|e| !e.trim().is_empty() && !mine(e)).cloned().collect::<Vec<_>>();
     let candidates = if !from.trim().is_empty() && !mine(from) {

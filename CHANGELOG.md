@@ -3,6 +3,10 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
+## Unreleased
+- **Colleagues stand alone in To**: Tab after someone at your own domain no longer brings in the
+  people you usually write to with them. Names outside your firm still do.
+
 ## 1.24.2 — 2026-10-30
 - **Calendar opens on this work week** each time you click Calendar (Navigation Pane,
   Go menu or Ctrl+2), wherever you left it. A date clicked in the To-Do Bar still opens that day.

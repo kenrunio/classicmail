@@ -155,7 +155,8 @@ struct Sent {
 
 /// The people who were on most (half or more, by weight: recent mail counts more) of the messages
 /// and meetings you sent to all of `emails`, and on at least `MIN_TIMES` of them; your own
-/// addresses never. Each goes to `to` or `cc` by where they usually were.
+/// addresses never. Each goes to `to` or `cc` by where they usually were. None when the last of
+/// `emails` (the name just added) is at your own domain.
 pub fn usual_group_sync(c: &Connection, emails: &[String], now_ms: i64) -> anyhow::Result<UsualGroup> {
     let want: Vec<String> = emails.iter().map(|e| e.trim().to_lowercase()).filter(|e| e.contains('@')).collect();
     let Some(first) = want.first().cloned() else { return Ok(UsualGroup::default()) };
@@ -166,6 +167,12 @@ pub fn usual_group_sync(c: &Connection, emails: &[String], now_ms: i64) -> anyho
                 own.insert(e);
             }
         }
+    }
+    // a colleague (your own domain, as ehud@ your firm) stands alone: Tab after them brings nobody
+    let last = want.last().map(String::as_str).unwrap_or("");
+    let own_domains = crate::mail::save_folders::own_domains(&own);
+    if own.contains(last) || last.rsplit_once('@').is_some_and(|(_, d)| own_domains.contains(d)) {
+        return Ok(UsualGroup::default());
     }
     let lower = |list: Vec<(String, String)>| list.into_iter().map(|(n, e)| (n, e.to_lowercase())).collect::<Vec<_>>();
     let pat = format!("%{}%", like_escape(&first));
@@ -303,5 +310,31 @@ mod group_tests {
         // nobody known
         let g = ctx.db.read(move |c| usual_group_sync(c, &["nobody@x.example".into()], now)).await.unwrap();
         assert_eq!(g, UsualGroup::default());
+    }
+
+    #[tokio::test]
+    async fn a_colleague_stands_alone() {
+        let (ctx, _g) = AppCtx::for_test().unwrap();
+        let acct = accounts::upsert(&ctx.db, "kenny@duvz.demo", "Kenny Green", "demo").await.unwrap().id;
+        let now = 1_800_000_000_000i64;
+        ctx.db
+            .write(move |c| {
+                for n in 0..4 {
+                    // Ron (a colleague) always with Yoav and Dana at Orbit
+                    c.execute(
+                        "INSERT INTO messages(account_id, gmail_id, thread_id, internal_date, sent_date, subject, from_name, from_email, to_json, cc_json, label_ids, body_state) \
+                         VALUES (?1, ?2, ?2, ?3, ?3, 's', 'Kenny', 'kenny@duvz.demo', ?4, '[]', 'SENT', 1)",
+                        params![acct, format!("g{n}"), now - (n + 1) * DAY, addrs(&["ron@duvz.demo", "yoav@orbit.example", "dana@orbit.example"])],
+                    )?;
+                }
+                Ok(())
+            })
+            .await
+            .unwrap();
+        let g = ctx.db.read(move |c| usual_group_sync(c, &["Ron@duvz.demo".into()], now)).await.unwrap();
+        assert_eq!(g, UsualGroup::default());
+        // an outside name after him still brings in its people
+        let g = ctx.db.read(move |c| usual_group_sync(c, &["ron@duvz.demo".into(), "yoav@orbit.example".into()], now)).await.unwrap();
+        assert_eq!(g.to.iter().map(|p| p.email.as_str()).collect::<Vec<_>>(), ["dana@orbit.example"]);
     }
 }
