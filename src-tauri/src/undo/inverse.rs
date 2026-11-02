@@ -167,6 +167,8 @@ pub async fn prepare(ctx: &Arc<AppCtx>, method: &str, p: &Value) -> anyhow::Resu
             let with_rec = series || p["recurrence"].is_array();
             Some(Prep::CalUpdate { target, series, with_rec, before })
         }
+        // a pasted meeting's invitations went out
+        "calendar.copyEvent" if p["invite"].as_bool() == Some(true) => return Ok(None),
         "calendar.copyEvent" => Some(Prep::Fixed {
             undo: vec![Op::new("calendar.deleteEvent", json!({ "id": "$new.id", "scope": "occurrence", "sendUpdates": false }))],
             redo: vec![Op::new("calendar.copyEvent", p.clone()).saving("new")],

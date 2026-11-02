@@ -2,6 +2,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { useRpc } from "../../api/query";
+import type { CalEvent } from "../../api/calendar";
 import type { ViewKind } from "./dates";
 import { dayStart } from "./dates";
 import type { Arrangement } from "./layout";
@@ -28,6 +29,8 @@ interface CalState {
   selection: Selection | null;
   /** selected item */
   selectedId: number | null;
+  /** Copy (Ctrl+C): the item Paste (Ctrl+V) puts in the selected slot */
+  clip: CalEvent | null;
   /** "Search Calendar" text; when non-empty the view shows results */
   search: string;
   /** "View Recurrences" list mode */
@@ -52,6 +55,7 @@ export const useCal = create<CalState>()(
       monthDetail: "high",
       selection: null,
       selectedId: null,
+      clip: null,
       search: "",
       listMode: "none",
       arrangement: "sideBySide",

@@ -6,7 +6,7 @@ import { newItemMenu } from "../../shell/newItems";
 import { openWindow } from "../../api/windows";
 import { NavPane } from "./NavPane";
 import { CalendarView, navigate } from "./CalendarView";
-import { deleteItem, setCategories } from "./actions";
+import { copyItem, deleteItem, pasteItem, setCategories } from "./actions";
 import { categorizeMenu, currentCategories, openColorCategories, useCategories } from "./categories";
 import { openCleanUp } from "./cleanup";
 import { goToDate, goToToday, newFromSelection, timeScaleItems, viewItems } from "./menus";
@@ -98,6 +98,18 @@ function useMenus(): ModuleMenus {
   const detail = (d: MonthDetail, label: string): MenuItem => ({ label, radio: true, checked: st.monthDetail === d, onClick: () => useCal.getState().set({ monthDetail: d }) });
   return {
     edit: [
+      {
+        label: "Copy",
+        icon: "copy",
+        shortcut: "Ctrl+C",
+        disabled: st.selectedId === null,
+        onClick: () => {
+          const ev = selected();
+          if (ev) copyItem(ev);
+        },
+      },
+      { label: "Paste", icon: "paste", shortcut: "Ctrl+V", disabled: !st.clip || !st.selection, onClick: () => pasteItem(useCal.getState().selection) },
+      { type: "separator" },
       {
         label: "Delete",
         icon: "delete",

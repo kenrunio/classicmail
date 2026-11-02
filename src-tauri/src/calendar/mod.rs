@@ -870,11 +870,33 @@ pub(crate) struct CopyParams {
     pub(crate) start: Option<i64>,
     pub(crate) end: Option<i64>,
     pub(crate) calendar_id: Option<i64>,
+    /// Paste of a meeting: the same people are invited to the copy (invitations go out)
+    #[serde(default)]
+    pub(crate) invite: bool,
 }
 
-/// Ctrl+drag: a plain copy of an item (without attendees) at a new time.
+/// Ctrl+drag: a plain copy of an item (without attendees) at a new time. With `invite` (Paste):
+/// a new meeting with the same people (the organizer too, when not you), and they're invited.
 pub(crate) async fn copy_event(ctx: Arc<AppCtx>, p: CopyParams) -> anyhow::Result<EventDetail> {
     let src = ctx.db.read(move |c| load_row(c, p.id)).await?;
+    let attendees: Vec<AttendeeIn> = if p.invite {
+        let mut list: Vec<AttendeeIn> = src
+            .attendees
+            .iter()
+            .filter(|a| a.is_self != Some(true) && a.email.contains('@'))
+            .map(|a| AttendeeIn { email: a.email.clone(), name: a.display_name.clone(), optional: a.optional })
+            .collect();
+        // someone else's meeting: they're invited to the follow-on too
+        if let Some(org) = src.organizer_email.clone().filter(|e| !src.organizer_self && e.contains('@')) {
+            if !list.iter().any(|a| a.email.eq_ignore_ascii_case(&org)) {
+                list.insert(0, AttendeeIn { email: org, name: src.organizer_name.clone(), optional: None });
+            }
+        }
+        list
+    } else {
+        Vec::new()
+    };
+    let invite = !attendees.is_empty();
     let input = EventInput {
         calendar_id: p.calendar_id.or(Some(src.calendar_id)),
         summary: Some(src.summary.clone()),
@@ -885,13 +907,13 @@ pub(crate) async fn copy_event(ctx: Arc<AppCtx>, p: CopyParams) -> anyhow::Resul
         all_day: Some(src.all_day),
         start_date: None,
         end_date: None,
-        attendees: None,
+        attendees: invite.then_some(attendees),
         reminder_minutes: Some(src.reminder_min.unwrap_or(-1)),
         busy_status: Some(src.busy_status().to_string()),
         is_private: Some(src.is_private()),
         importance: src.importance.clone(),
         recurrence: None,
-        send_updates: Some(false),
+        send_updates: Some(invite),
         categories: Some(src.categories.clone()),
         time_zone: src.time_zone.clone(),
     };

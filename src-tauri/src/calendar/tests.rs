@@ -395,6 +395,16 @@ async fn meeting_create_sends_and_copy_and_search() {
     assert_eq!(c["summary"], "Q4 strategy");
     let s = call(&ctx, "calendar.search", json!({ "query": "q4 strat" })).await;
     assert_eq!(s.as_array().unwrap().len(), 2);
+    // Paste: a new meeting with the same people, invited (the original stays as it was)
+    let p = call(&ctx, "calendar.copyEvent", json!({ "id": d["id"], "start": start + 48 * HOUR, "end": start + 49 * HOUR, "invite": true })).await;
+    assert_eq!(p["isMeeting"], true);
+    assert_eq!(p["isOrganizer"], true);
+    assert_ne!(p["id"], d["id"]);
+    let emails: Vec<&str> = p["attendees"].as_array().unwrap().iter().filter_map(|a| a["email"].as_str()).collect();
+    assert!(emails.contains(&"sarah.cohen@harborcap.example"), "{emails:?}");
+    assert_eq!(emails.len(), 2, "you and Sarah: {emails:?}");
+    let before = call(&ctx, "calendar.getEvent", json!({ "id": d["id"] })).await;
+    assert!((before["start"].as_i64().unwrap() - start).abs() < 1000, "the original is not moved");
 }
 
 /// Responses › Resend Invitation: one meeting request e-mail, to just that attendee.

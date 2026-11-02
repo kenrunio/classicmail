@@ -17,7 +17,7 @@ import { CleanUpHost } from "./cleanup";
 import { MonthGrid } from "./MonthGrid";
 import { ListView, type ListRow } from "./ListView";
 import { CalDialogHost } from "./dialogs";
-import { deleteItem, mailAboutItem, openItem, setCategories } from "./actions";
+import { copyItem, deleteItem, mailAboutItem, openItem, pasteItem, setCategories } from "./actions";
 import { goToDate, goToToday, newFromSelection } from "./menus";
 import { useCal, useCalSettings, type MonthDetail } from "./state";
 import "./calendar.css";
@@ -174,6 +174,11 @@ export function CalendarView() {
       const ev = selected();
       if (ev) openItem(ev);
     },
+    "ctrl+c": () => {
+      const ev = selected();
+      if (ev) copyItem(ev);
+    },
+    "ctrl+v": () => pasteItem(useCal.getState().selection),
     // a meeting's Reply goes to everyone (as in mail)
     "ctrl+r": () => {
       const ev = selected();

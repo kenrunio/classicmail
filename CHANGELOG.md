@@ -3,6 +3,12 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
+## Unreleased
+- **Copy and paste calendar items**: select an item and press Ctrl+C (or right-click › Copy), click a
+  free slot and press Ctrl+V (or right-click › Paste). A meeting with other people becomes a new
+  meeting at that time, for a follow-on meeting or as a template, and the same people are sent
+  invitations (you can paste it without them instead). The original meeting is not changed.
+
 ## 1.24.3 — 2026-11-01
 - **Colleagues stand alone in To**: Tab after someone at your own domain no longer brings in the
   people you usually write to with them. Names outside your firm still do.

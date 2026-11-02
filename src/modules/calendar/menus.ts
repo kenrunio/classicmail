@@ -4,7 +4,7 @@ import { rpc } from "../../api/rpc";
 import type { MenuItem } from "../../ui";
 import { allDayRange, dayStart } from "./dates";
 import { goToDateBox } from "./dialogs";
-import { deleteItem, mailAboutItem, newAppointment, openItem, proposeNewTime, quickPrint, respondTo, setCategories, setPrivate, setShowAs, SHOW_AS } from "./actions";
+import { copyItem, deleteItem, mailAboutItem, newAppointment, openItem, pasteItem, proposeNewTime, quickPrint, respondTo, setCategories, setPrivate, setShowAs, SHOW_AS } from "./actions";
 import { categorizeMenu, currentCategories } from "./categories";
 import { useCal, type Selection } from "./state";
 
@@ -60,6 +60,8 @@ export function slotMenu(sel: Selection | null, timeScale: number): MenuItem[] {
     { label: "New All Day Event", icon: "calendar", onClick: () => newFromSelection(sel, { allDay: true }) },
     { label: "New Meeting Request", icon: "meeting-request", onClick: () => newFromSelection(sel, { meeting: true }) },
     { type: "separator" },
+    { label: "Paste", icon: "paste", shortcut: "Ctrl+V", disabled: !useCal.getState().clip, onClick: () => pasteItem(sel) },
+    { type: "separator" },
     { label: "Go to Today", icon: "today", onClick: goToToday },
     { label: "Go to Date…", shortcut: "Ctrl+G", onClick: goToDate },
     { type: "separator" },
@@ -81,6 +83,7 @@ export function itemMenu(ev: CalEvent): MenuItem[] {
     { label: "Open", icon: "appointment", bold: true, onClick: () => openItem(ev, ev.isRecurring ? "occurrence" : undefined) },
     ...(ev.isRecurring ? [{ label: "Open Series", icon: "recurring", onClick: () => openItem(ev, "series") } as MenuItem] : []),
     { label: "Quick Print", icon: "print", onClick: () => quickPrint(ev.id) },
+    { label: "Copy", icon: "copy", shortcut: "Ctrl+C", onClick: () => copyItem(ev) },
     ...(canRespond
       ? ([
           { type: "separator" },

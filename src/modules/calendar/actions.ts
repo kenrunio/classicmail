@@ -5,6 +5,7 @@ import { errorBox } from "../../ui";
 import { nextSlot, dayStart, plusDays, HOUR, fmtLongDate, fmtTime } from "./dates";
 import { promptBox, proposeTimeBox, radioBox } from "./dialogs";
 import type { ItemMailMode } from "./itemMail";
+import { useCal, type Selection } from "./state";
 
 type Item = Pick<CalEvent, "id" | "summary" | "isRecurring" | "isMeeting" | "isOrganizer"> & Partial<CalEvent>;
 
@@ -199,6 +200,51 @@ export async function askSendUpdate(ev: Item): Promise<boolean | null> {
     "send",
   );
   return v === null ? null : v === "send";
+}
+
+/** Copy (Ctrl+C): remember the item for Paste. */
+export function copyItem(ev: CalEvent) {
+  useCal.getState().set({ clip: ev });
+}
+
+/**
+ * Paste (Ctrl+V) into the selected slot: a copy at that time, as long as the original (a day
+ * picked in Month or the all-day row: the original's time of day on it). A meeting with others is
+ * a new meeting — a follow-on, or a template — and its people are invited to it; the original
+ * stays where it is.
+ */
+export async function pasteItem(sel: Selection | null) {
+  const clip = useCal.getState().clip;
+  if (!clip || !sel) return;
+  let start = sel.start;
+  if (clip.allDay) start = dayStart(sel.start).getTime();
+  else if (sel.allDay) {
+    const t = new Date(clip.start);
+    const d = new Date(sel.start);
+    d.setHours(t.getHours(), t.getMinutes(), 0, 0);
+    start = d.getTime();
+  }
+  const end = start + (clip.end - clip.start);
+  let invite = false;
+  if (clip.isMeeting) {
+    const v = await radioBox(
+      "Paste Meeting",
+      `Paste "${clip.summary || "Untitled"}" as a new meeting on ${fmtLongDate(start)}${clip.allDay ? "" : ` at ${fmtTime(start)}`}? The original stays where it is.`,
+      [
+        { value: "invite", label: "Send invitations to the same people." },
+        { value: "alone", label: "Paste it without the attendees." },
+      ],
+      "invite",
+    );
+    if (v === null) return;
+    invite = v === "invite";
+  }
+  try {
+    const c = await cal.copy(clip.id, start, end, sel.calendarId, `Paste "${clip.summary || "Untitled"}"`, invite);
+    useCal.getState().set({ selectedId: c.id, selection: null });
+  } catch (e) {
+    errorBox(e);
+  }
 }
 
 export async function setShowAs(ev: Item, busyStatus: BusyStatus) {

@@ -185,7 +185,9 @@ export const cal = {
   getEvent: (id: number) => rpc<EventDetail>("calendar.getEvent", { id }),
   create: (p: EventInput, label?: string) => via<EventDetail>(label, "calendar.createEvent", p),
   update: (id: number, p: EventInput, scope: Scope = "occurrence", label?: string) => via<EventDetail>(label, "calendar.updateEvent", { id, scope, ...p }),
-  copy: (id: number, start: number, end: number, calendarId?: number, label?: string) => via<EventDetail>(label, "calendar.copyEvent", { id, start, end, calendarId }),
+  /** a copy at a new time; `invite` (Paste of a meeting): the same people, invited to it */
+  copy: (id: number, start: number, end: number, calendarId?: number, label?: string, invite?: boolean) =>
+    via<EventDetail>(label, "calendar.copyEvent", { id, start, end, calendarId, invite }),
   /** move to another calendar (same account: Google events.move; other account: copy + delete), optionally retimed */
   moveTo: (id: number, calendarId: number, p: EventInput = {}, label?: string) => via<EventDetail>(label, "calendar.moveToCalendar", { ...p, id, calendarId }),
   listCategories: () => rpc<CategoryList>("calendar.listCategories"),
