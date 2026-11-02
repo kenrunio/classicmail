@@ -51,6 +51,15 @@ describe("applyFolderOrder", () => {
     expect(out.map((x) => x.id)).toEqual(["mb2", "mb1"]);
     expect(out[1].children!.map((x) => x.id)).toEqual(["f3", "f1", "f2"]);
   });
+
+  it("puts a node the order doesn't list (Archive, saved before it existed) where it would be, not at the bottom", () => {
+    const kids = ["f22", "f21", "sarchive:2", "sroot:2", "f28", "f29"].map((id) => ({ id, label: id }));
+    const out = applyFolderOrder([{ id: "mb2", label: "mb2", children: kids }], { mb2: ["f22", "f21", "sroot:2", "f28", "f29"] });
+    expect(out[0].children!.map((x) => x.id)).toEqual(["f22", "f21", "sarchive:2", "sroot:2", "f28", "f29"]);
+    // first in the natural order: first
+    const first = applyFolderOrder([{ id: "mb", label: "mb", children: [{ id: "new", label: "" }, ...kids.slice(0, 2)] }], { mb: ["f21", "f22"] });
+    expect(first[0].children!.map((x) => x.id)).toEqual(["new", "f21", "f22"]);
+  });
 });
 
 import { accountInitials, favoriteNodes } from "./NavPane";

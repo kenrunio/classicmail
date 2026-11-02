@@ -29,13 +29,19 @@ async function saveFolderOrder(parent: string | null, ids: string[]) {
   await undoable("Reorder Folders", "settings.set", { key: ORDER_KEY, value: next }).catch(() => {});
 }
 
-/** Apply the saved order: listed ids first in that order, any others (new folders) after, as before. */
+/** Apply the saved order: listed ids in that order; any others (a folder, or Archive, that came
+ *  after the order was saved) just after the one they'd follow anyway — not at the bottom. */
 export function applyFolderOrder(nodes: TreeNode[], order: FolderOrder, parent = "root"): TreeNode[] {
   const want = order[parent];
   let out = nodes;
   if (want?.length) {
     const pos = new Map(want.map((id, i) => [id, i]));
-    out = [...nodes].sort((a, b) => (pos.get(a.id) ?? 1e9) - (pos.get(b.id) ?? 1e9));
+    out = nodes.filter((n) => pos.has(n.id)).sort((a, b) => pos.get(a.id)! - pos.get(b.id)!);
+    nodes.forEach((n, i) => {
+      if (pos.has(n.id)) return;
+      const before = i > 0 ? out.findIndex((x) => x.id === nodes[i - 1].id) : -1;
+      out.splice(before + 1, 0, n);
+    });
   }
   return out.map((n) => (n.children?.length ? { ...n, children: applyFolderOrder(n.children, order, n.id) } : n));
 }
