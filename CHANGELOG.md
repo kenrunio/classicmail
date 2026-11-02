@@ -3,7 +3,7 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
-## Unreleased
+## 1.24.4 — 2026-11-02
 - **Copy and paste calendar items**: select an item and press Ctrl+C (or right-click › Copy), click a
   free slot and press Ctrl+V (or right-click › Paste). A meeting with other people becomes a new
   meeting at that time, for a follow-on meeting or as a template, and the same people are sent
