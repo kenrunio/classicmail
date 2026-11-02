@@ -3,7 +3,7 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
-## Unreleased
+## 1.24.5 — 2026-11-02
 - **A folder you haven't placed keeps its usual spot**: in a mailbox whose folders you'd already
   rearranged, a newer entry (such as Archive) sat at the bottom; it now comes after the one it
   normally follows (Archive after Sent Items), and can be dragged from there.
