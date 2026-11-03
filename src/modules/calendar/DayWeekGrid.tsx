@@ -40,6 +40,7 @@ export function DayWeekGrid({
   showTabs,
   allCalendars,
   onOverlay,
+  scrollTo,
 }: {
   days: Date[];
   groups: GridGroup[];
@@ -49,6 +50,8 @@ export function DayWeekGrid({
   allCalendars: CalendarInfo[];
   /** calendar id → view in overlay mode (true) / side by side again (false) */
   onOverlay: (calendarId: number, overlay: boolean) => void;
+  /** open scrolled to an hour before this time (a meeting) instead of the start of the working day */
+  scrollTo?: number;
 }) {
   const { selection, selectedId, set } = useCal();
   const cats = useCategories();
@@ -95,13 +98,13 @@ export function DayWeekGrid({
   const rangeKey = `${days[0]?.getTime()}-${n}-${scale}`;
   useLayoutEffect(() => {
     const el = scrollRef.current;
-    const top = Math.max(0, settings.workDayStart * pxPerMin - 2);
+    const top = Math.max(0, scrollTo !== undefined ? (minutesOf(scrollTo) - 60) * pxPerMin : settings.workDayStart * pxPerMin - 2);
     if (el) el.scrollTop = top;
     // the pane may still be settling its height on first show: apply again once laid out
     const raf = requestAnimationFrame(() => el && (el.scrollTop = top));
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeKey]);
+  }, [rangeKey, scrollTo]);
 
   const evsByGroup = useMemo(() => groups.map((g) => g.events.map((e) => (overrides[e.id] ? { ...e, ...overrides[e.id] } : e))), [groups, overrides]);
   const evs = useMemo(() => evsByGroup.flat(), [evsByGroup]);

@@ -17,6 +17,7 @@ import { AddressTokens } from "./AddressTokens";
 import { FileIcon } from "./icons";
 import { promptDialog } from "./dialogs";
 import { closeCurrentWindow, markPainted, windowParams } from "../../api/windows";
+import { InviteDay } from "../calendar/InviteDay";
 
 export function useMessage(id: number | null, allowRemote: boolean) {
   return useRpc<MessageView>(["mail", "message", id, allowRemote], "mail.getMessage", { id, allowRemote }, { enabled: id !== null && id > 0, staleTime: 60_000, retry: false });
@@ -35,6 +36,8 @@ export function MessageReader({ id, compact }: { id: number; compact?: boolean }
   type SourceView = "message" | SourceTab;
   const [sourceFor, setSourceFor] = useState<{ id: number; tab: SourceView } | null>(null);
   const source = sourceFor?.id === id ? sourceFor.tab : null;
+  // a meeting request's View in Calendar: its day in place of the text, for this message only
+  const [calFor, setCalFor] = useState<number | null>(null);
   const q = useMessage(id, allow);
   const m = q.data;
   const tr = useTranslation(m);
@@ -43,10 +46,26 @@ export function MessageReader({ id, compact }: { id: number; compact?: boolean }
   }, [q.isError]);
   if (q.isError) return <div className="cm-mail-rp-empty">{(q.error as Error).message}</div>;
   if (!m) return <div className="cm-mail-rp-empty">{q.isFetching ? "Loading…" : ""}</div>;
+  const calDay = calFor === id && m.invite?.start ? m.invite : null;
   return (
     <div className={`cm-mail-reader${compact ? " compact" : ""}`} data-zoom>
-      <Header m={m} onDownload={() => setAllowFor(id)} translateBar={tr.bar} subject={tr.subject} preview={preview} onPreview={setPreview} />
-      {source && !preview && (
+      <Header
+        m={m}
+        onDownload={() => setAllowFor(id)}
+        translateBar={tr.bar}
+        subject={tr.subject}
+        preview={preview}
+        onPreview={(a) => {
+          setPreview(a);
+          setCalFor(null);
+        }}
+        calendar={!!calDay}
+        onCalendar={() => {
+          setCalFor(calDay ? null : id);
+          setPreview(null);
+        }}
+      />
+      {source && !preview && !calDay && (
         <BodyTabs
           tabs={[
             { key: "message", label: "Message" },
@@ -69,7 +88,9 @@ export function MessageReader({ id, compact }: { id: number; compact?: boolean }
           )}
         </BodyTabs>
       )}
-      {preview ? (
+      {calDay ? (
+        <InviteDayView m={m} invite={calDay} />
+      ) : preview ? (
         <AttachmentPreviewPane key={preview.id} a={preview} />
       ) : source && source !== "message" ? (
         <MessageSourceView id={id} tab={source} />
@@ -121,6 +142,8 @@ function Header({
   subject,
   preview,
   onPreview,
+  calendar,
+  onCalendar,
 }: {
   m: MessageView;
   onDownload: () => void;
@@ -128,6 +151,9 @@ function Header({
   subject?: string | null;
   preview: Attachment | null;
   onPreview: (a: Attachment | null) => void;
+  /** a meeting request's day is shown in place of the text (View in Calendar) */
+  calendar: boolean;
+  onCalendar: () => void;
 }) {
   const bars: { icon: string; text: React.ReactNode; menu?: () => MenuItem[]; onClick?: () => void; key: string }[] = [];
   if (m.folders.some((f) => f.role === "spam"))
@@ -157,7 +183,12 @@ function Header({
   const atts = m.attachments.filter((a) => !a.isInline);
   return (
     <div className="cm-mail-rp-header">
-      {m.invite && (m.invite.method === "REPLY" || m.invite.method === "CANCEL" ? <InviteNoticeBar invite={m.invite} /> : <InviteBar m={m} invite={m.invite} />)}
+      {m.invite &&
+        (m.invite.method === "REPLY" || m.invite.method === "CANCEL" ? (
+          <InviteNoticeBar invite={m.invite} />
+        ) : (
+          <InviteBar m={m} invite={m.invite} calendar={calendar} onCalendar={onCalendar} />
+        ))}
       <div className="cm-mail-rp-subject" dir="auto" title={subject ? m.subject : undefined}>
         {subject || m.subject || "(no subject)"}
       </div>
@@ -274,12 +305,22 @@ interface CalEvent {
   end: number;
 }
 
-function InviteBar({ m, invite }: { m: MessageView; invite: Invite }) {
-  const found = useQuery({
+/** The meeting on your calendar (null: not on it). */
+function useInviteEvent(m: MessageView, invite: Invite) {
+  return useQuery({
     queryKey: ["calendar", "byIcalUid", m.accountId, invite.uid],
     queryFn: () => rpc<CalEvent | null>("calendar.findByIcalUid", { accountId: m.accountId, icalUid: invite.uid }).catch(() => null),
     staleTime: 30_000,
   });
+}
+
+function InviteDayView({ m, invite }: { m: MessageView; invite: Invite }) {
+  const found = useInviteEvent(m, invite);
+  return <InviteDay start={invite.start!} allDay={invite.allDay} eventId={found.data?.id} />;
+}
+
+function InviteBar({ m, invite, calendar, onCalendar }: { m: MessageView; invite: Invite; calendar: boolean; onCalendar: () => void }) {
+  const found = useInviteEvent(m, invite);
   const [busy, setBusy] = useState(false);
   const [answered, setAnswered] = useState<string | null>(null);
   const respond = async (response: "accepted" | "tentative" | "declined", sendResponse = true, comment?: string) => {
@@ -334,6 +375,19 @@ function InviteBar({ m, invite }: { m: MessageView; invite: Invite }) {
         {btn("accepted", "accept", "Accept")}
         {btn("tentative", "tentative", "Tentative")}
         {btn("declined", "decline", "Decline")}
+        {invite.start && (
+          <>
+            <span className="cm-mail-invite-sep" />
+            <button
+              className={`cm-mail-invite-btn${calendar ? " pressed" : ""}`}
+              title={calendar ? "Back to the message" : "See this day in your calendar, around the meeting"}
+              onClick={onCalendar}
+            >
+              <Icon name="calendar" size={16} />
+              View in Calendar
+            </button>
+          </>
+        )}
       </div>
       <div className="cm-mail-infobar">
         <Icon name="meeting-request" size={14} />

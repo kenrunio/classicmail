@@ -3,6 +3,12 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
+## Unreleased
+- **View in Calendar on a meeting request**: a button next to Accept / Tentative / Decline shows
+  the meeting's day from your calendar in place of the message (scrolled to the meeting, which is
+  selected), so you can see what's around it and still answer from the buttons above. Click it
+  again to go back to the message.
+
 ## 1.24.5 — 2026-11-02
 - **A folder you haven't placed keeps its usual spot**: in a mailbox whose folders you'd already
   rearranged, a newer entry (such as Archive) sat at the bottom; it now comes after the one it
