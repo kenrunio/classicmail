@@ -12,13 +12,14 @@ import { apptColors, stripeBackground, tint } from "./color";
 import { itemColor, useCategories } from "./categories";
 import { itemMenu, newFromSelection, slotMenu } from "./menus";
 import { askSendUpdate, openItem } from "./actions";
-import { useCal, type CalSettings } from "./state";
+import { isPicked, togglePick, useCal, type CalSettings } from "./state";
 
 const LINE = 17;
 const HEAD = 18;
 
 export function MonthGrid({ days, events, settings, anchor }: { days: Date[]; events: CalEvent[]; settings: CalSettings; anchor: Date }) {
-  const { selection, selectedId, set, monthDetail } = useCal();
+  const { selection, selectedId, alsoSelected, set, monthDetail } = useCal();
+  const picked = (id: number) => isPicked({ selectedId, alsoSelected }, id);
   const cats = useCategories();
   const rootRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -119,8 +120,10 @@ export function MonthGrid({ days, events, settings, anchor }: { days: Date[]; ev
     if (e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
-    set({ selectedId: ev.id, selection: null });
     rootRef.current?.focus({ preventScroll: true });
+    // Ctrl+click with an item selected: one more (or one fewer) selected, to copy together
+    if (e.ctrlKey && selectedId !== null && selectedId !== ev.id) return togglePick(ev);
+    set({ selectedId: ev.id, selection: null });
     if (ev.readOnly || (ev.isMeeting && !ev.isOrganizer)) return;
     drag.current = { ev, day0: dayAt(e.clientX, e.clientY), moved: false, x0: e.clientX, y0: e.clientY };
     const move = (m: MouseEvent) => {
@@ -258,7 +261,7 @@ export function MonthGrid({ days, events, settings, anchor }: { days: Date[]; ev
                       monthDetail === "medium" ? (
                         <div
                           key={ev.id}
-                          className={`cm-cal-mbar${ev.id === selectedId ? " selected" : ""}`}
+                          className={`cm-cal-mbar${picked(ev.id) ? " selected" : ""}`}
                           style={{ background: stripeBackground(ev.busyStatus, colorOf(ev)) }}
                           title={itemTitle(ev)}
                           onMouseDown={(e) => onItemDown(e, ev)}
@@ -269,14 +272,14 @@ export function MonthGrid({ days, events, settings, anchor }: { days: Date[]; ev
                           onContextMenu={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            set({ selectedId: ev.id, selection: null });
+                            if (!picked(ev.id)) set({ selectedId: ev.id, selection: null });
                             showMenu(e.clientX, e.clientY, itemMenu(ev));
                           }}
                         />
                       ) : (
                         <div
                           key={ev.id}
-                          className={`cm-cal-mitem${ev.id === selectedId ? " selected" : ""}`}
+                          className={`cm-cal-mitem${picked(ev.id) ? " selected" : ""}`}
                           style={colorOf(ev) !== ev.calendarColor ? { background: tint(colorOf(ev), 0.45) } : undefined}
                           title={itemTitle(ev)}
                           onMouseDown={(e) => onItemDown(e, ev)}
@@ -287,7 +290,7 @@ export function MonthGrid({ days, events, settings, anchor }: { days: Date[]; ev
                           onContextMenu={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            set({ selectedId: ev.id, selection: null });
+                            if (!picked(ev.id)) set({ selectedId: ev.id, selection: null });
                             showMenu(e.clientX, e.clientY, itemMenu(ev));
                           }}
                         >
@@ -348,13 +351,13 @@ export function MonthGrid({ days, events, settings, anchor }: { days: Date[]; ev
                 return (
                   <div
                     key={ev.id}
-                    className={`cm-cal-mband${ev.id === selectedId ? " selected" : ""}`}
+                    className={`cm-cal-mband${picked(ev.id) ? " selected" : ""}`}
                     style={{
                       top: HEAD + lane * LINE,
                       left: `calc(${(item.first / 7) * 100}% + 2px)`,
                       width: `calc(${((item.last - item.first + 1) / 7) * 100}% - 5px)`,
                       background: `linear-gradient(${c.fillTop}, ${c.fillBottom})`,
-                      borderColor: ev.id === selectedId ? undefined : c.border,
+                      borderColor: picked(ev.id) ? undefined : c.border,
                     }}
                     title={itemTitle(ev)}
                     onMouseDown={(e) => onItemDown(e, ev)}
@@ -365,7 +368,7 @@ export function MonthGrid({ days, events, settings, anchor }: { days: Date[]; ev
                     onContextMenu={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      set({ selectedId: ev.id, selection: null });
+                      if (!picked(ev.id)) set({ selectedId: ev.id, selection: null });
                       showMenu(e.clientX, e.clientY, itemMenu(ev));
                     }}
                   >

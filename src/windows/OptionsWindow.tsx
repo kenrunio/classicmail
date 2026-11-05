@@ -7,6 +7,7 @@ import { setSetting, useSettings, type SettingKey, type SettingValues } from "..
 import { closeCurrentWindow, setWindowTitle, windowParams } from "../api/windows";
 import { Icon, errorBox } from "../ui";
 import { OPTION_EXTRA_TABS } from "./optionTabs";
+import { localZone, zoneAbbrev, zoneLabel, zoneList } from "../modules/calendar/timeZones";
 import { DEFAULT_SIZE, FONT_CHOICES, SIZE_CHOICES, WEIGHT_CHOICES } from "../ui/font";
 import "./windows.css";
 
@@ -291,6 +292,48 @@ function Preferences({ values, set }: Props) {
             ))}
           </select>
         </div>
+        <div className="cm-opt-row" title="Day and Week views: a second time column, to the right of yours">
+          <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <input type="checkbox" checked={!!values["calendar.secondZone"]} onChange={(e) => set("calendar.secondZone", e.target.checked ? "America/New_York" : "")} />
+            Show a second time zone
+          </label>
+        </div>
+        {!!values["calendar.secondZone"] && (
+          <>
+            <div className="cm-opt-row">
+              <span>Your time zone:</span>
+              <span className="cm-muted">{zoneLabel(localZone())}</span>
+              <span style={{ marginLeft: 12 }}>Label:</span>
+              <input
+                className="cm-input"
+                style={{ width: 64 }}
+                maxLength={8}
+                placeholder={zoneAbbrev(localZone())}
+                value={values["calendar.zoneLabel"]}
+                onChange={(e) => set("calendar.zoneLabel", e.target.value)}
+              />
+            </div>
+            <div className="cm-opt-row">
+              <span>Second time zone:</span>
+              <select className="cm-input" value={values["calendar.secondZone"]} onChange={(e) => set("calendar.secondZone", e.target.value)}>
+                {zoneList(Date.now(), [values["calendar.secondZone"]]).map((z) => (
+                  <option key={z.tz} value={z.tz}>
+                    {z.label}
+                  </option>
+                ))}
+              </select>
+              <span style={{ marginLeft: 12 }}>Label:</span>
+              <input
+                className="cm-input"
+                style={{ width: 64 }}
+                maxLength={8}
+                placeholder={zoneAbbrev(values["calendar.secondZone"])}
+                value={values["calendar.secondZoneLabel"]}
+                onChange={(e) => set("calendar.secondZoneLabel", e.target.value)}
+              />
+            </div>
+          </>
+        )}
         <div className="cm-opt-row">
           <span>Default reminder:</span>
           <select className="cm-input" value={values["calendar.defaultReminderMinutes"]} onChange={(e) => set("calendar.defaultReminderMinutes", Number(e.target.value))}>

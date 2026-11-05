@@ -3,6 +3,19 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
+## Unreleased
+- **Cc on meetings**: the meeting window has a Cc row under To, for people whose attendance is
+  optional (Google's optional guests). A meeting you're invited to shows them on a Cc row too.
+- **Adding someone to a meeting invites only them**: when the only change to a meeting already
+  sent is new people, Google gets the update quietly and just the new people are e-mailed the
+  invitation (from your mailbox, as Resend Invitation does). Any other change still sends an
+  update to everyone.
+- **Copy and paste several calendar items**: Ctrl+click items to select more than one, Ctrl+C,
+  then paste them into a slot; they keep the same time apart (the first lands on the slot).
+  Items copied together must be from one day.
+- **A second time zone in Day and Week**: Tools › Options › Calendar › Show a second time zone
+  adds its time column to the right of yours, with a label over each (e.g. IST and ET).
+
 ## 1.24.6 — 2026-11-03
 - **View in Calendar on a meeting request**: a button next to Accept / Tentative / Decline shows
   the meeting's day from your calendar in place of the message (scrolled to the meeting, which is

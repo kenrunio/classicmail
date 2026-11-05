@@ -1359,3 +1359,21 @@
 .cm-cal-tz {
   max-width: 320px;
 }
+
+/* Options › Show a second time zone: both time columns labelled over the ruler */
+.cm-cal-zones {
+  display: flex;
+  align-items: flex-end;
+}
+.cm-cal-zones span {
+  width: 52px;
+  padding: 0 4px 2px 0;
+  text-align: right;
+  font-size: 11px;
+  color: var(--text-title);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.cm-cal-ruler.second {
+  border-left: none;
+}

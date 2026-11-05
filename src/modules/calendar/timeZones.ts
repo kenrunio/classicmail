@@ -98,6 +98,15 @@ export function zoneName(tz: string): string {
   return NAMES.get(tz) ?? (tz.split("/").pop() ?? tz).replace(/_/g, " ");
 }
 
+/** A short name for a zone's column when no label is set: "EST", "GMT+2". */
+export function zoneAbbrev(tz: string, at = Date.now()): string {
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "short" }).formatToParts(at).find((p) => p.type === "timeZoneName")?.value ?? tz;
+  } catch {
+    return tz;
+  }
+}
+
 /** "(UTC-05:00) Eastern Time (US & Canada)" — the offset at `at`, then the zone's name. */
 export function zoneLabel(tz: string, at = Date.now()): string {
   const off = Math.round(offsetAt(at, tz) / 60000);

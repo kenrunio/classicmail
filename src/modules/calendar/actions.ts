@@ -1,11 +1,11 @@
 // Calendar commands shared by the view, toolbar, menus and item windows.
 import { cal, type BusyStatus, type CalEvent, type Response, type Scope } from "../../api/calendar";
 import { openWindow } from "../../api/windows";
-import { errorBox } from "../../ui";
+import { alertBox, errorBox } from "../../ui";
 import { nextSlot, dayStart, plusDays, HOUR, fmtLongDate, fmtTime } from "./dates";
 import { promptBox, proposeTimeBox, radioBox } from "./dialogs";
 import type { ItemMailMode } from "./itemMail";
-import { useCal, type Selection } from "./state";
+import { isPicked, useCal, type Selection } from "./state";
 
 type Item = Pick<CalEvent, "id" | "summary" | "isRecurring" | "isMeeting" | "isOrganizer"> & Partial<CalEvent>;
 
@@ -202,49 +202,80 @@ export async function askSendUpdate(ev: Item): Promise<boolean | null> {
   return v === null ? null : v === "send";
 }
 
-/** Copy (Ctrl+C): remember the item for Paste. */
+/** The day an item is on (an all-day one: its first day). */
+const itemDay = (ev: CalEvent) => dayStart(ev.start).getTime();
+
+/** Copy (Ctrl+C): remember the item — or, when it's one of several selected (Ctrl+click), all of
+ *  them — for Paste. Several only from one day, so a slip can't copy half the calendar. */
 export function copyItem(ev: CalEvent) {
-  useCal.getState().set({ clip: ev });
+  const s = useCal.getState();
+  const picked = isPicked(s, ev.id) && s.alsoSelected.length ? [ev, ...s.alsoSelected.filter((x) => x.id !== ev.id)] : [ev];
+  if (picked.some((x) => itemDay(x) !== itemDay(picked[0]))) {
+    void alertBox("Items copied together must all be on the same day. Select items from one day and copy them again.", "ClassicMail", "info");
+    return;
+  }
+  s.set({ clip: [...picked].sort((a, b) => a.start - b.start || a.id - b.id) });
 }
 
-/**
- * Paste (Ctrl+V) into the selected slot: a copy at that time, as long as the original (a day
- * picked in Month or the all-day row: the original's time of day on it). A meeting with others is
- * a new meeting — a follow-on, or a template — and its people are invited to it; the original
- * stays where it is.
- */
-export async function pasteItem(sel: Selection | null) {
-  const clip = useCal.getState().clip;
-  if (!clip || !sel) return;
+/** Where pasted items go: the first timed one at the slot (a day picked in Month or the all-day
+ *  row: its own time of day there), the others as far from it as they were; all-day ones on that day. */
+export function pasteTimes(clip: CalEvent[], sel: Selection): { start: number; end: number }[] {
+  const lead = clip.find((x) => !x.allDay) ?? clip[0];
   let start = sel.start;
-  if (clip.allDay) start = dayStart(sel.start).getTime();
+  if (lead.allDay) start = dayStart(sel.start).getTime();
   else if (sel.allDay) {
-    const t = new Date(clip.start);
+    const t = new Date(lead.start);
     const d = new Date(sel.start);
     d.setHours(t.getHours(), t.getMinutes(), 0, 0);
     start = d.getTime();
   }
-  const end = start + (clip.end - clip.start);
+  const delta = start - lead.start;
+  const day = dayStart(start);
+  return clip.map((x) => {
+    if (!x.allDay) return { start: x.start + delta, end: x.end + delta };
+    // whole days: the same number of them, from the paste day (DST days aren't 24 h)
+    const days = Math.max(1, Math.round((x.end - x.start) / (24 * HOUR)));
+    return { start: day.getTime(), end: plusDays(day, days).getTime() };
+  });
+}
+
+/**
+ * Paste (Ctrl+V) into the selected slot: a copy of each copied item, the same time apart as the
+ * originals. A meeting with others is a new meeting — a follow-on, or a template — and its people
+ * are invited to it; the originals stay where they are.
+ */
+export async function pasteItem(sel: Selection | null) {
+  const clip = useCal.getState().clip;
+  if (!clip.length || !sel) return;
+  const times = pasteTimes(clip, sel);
+  const first = clip.length === 1 ? clip[0] : null;
   let invite = false;
-  if (clip.isMeeting) {
+  if (clip.some((x) => x.isMeeting)) {
+    const at = `${fmtLongDate(times[0].start)}${clip[0].allDay && first ? "" : ` at ${fmtTime(times[0].start)}`}`;
     const v = await radioBox(
-      "Paste Meeting",
-      `Paste "${clip.summary || "Untitled"}" as a new meeting on ${fmtLongDate(start)}${clip.allDay ? "" : ` at ${fmtTime(start)}`}? The original stays where it is.`,
+      first ? "Paste Meeting" : "Paste Meetings",
+      first
+        ? `Paste "${first.summary || "Untitled"}" as a new meeting on ${at}? The original stays where it is.`
+        : `Paste ${clip.length} items on ${fmtLongDate(times[0].start)}, the same time apart as the originals? The meetings are new meetings; the originals stay where they are.`,
       [
         { value: "invite", label: "Send invitations to the same people." },
-        { value: "alone", label: "Paste it without the attendees." },
+        { value: "alone", label: first ? "Paste it without the attendees." : "Paste them without the attendees." },
       ],
       "invite",
     );
     if (v === null) return;
     invite = v === "invite";
   }
+  const made: number[] = [];
   try {
-    const c = await cal.copy(clip.id, start, end, sel.calendarId, `Paste "${clip.summary || "Untitled"}"`, invite);
-    useCal.getState().set({ selectedId: c.id, selection: null });
+    for (const [i, x] of clip.entries()) {
+      const c = await cal.copy(x.id, times[i].start, times[i].end, sel.calendarId, `Paste "${x.summary || "Untitled"}"`, invite && x.isMeeting);
+      made.push(c.id);
+    }
   } catch (e) {
     errorBox(e);
   }
+  if (made.length) useCal.getState().set({ selectedId: made[0], selection: null });
 }
 
 export async function setShowAs(ev: Item, busyStatus: BusyStatus) {

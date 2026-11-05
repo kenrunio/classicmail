@@ -108,7 +108,7 @@ function useMenus(): ModuleMenus {
           if (ev) copyItem(ev);
         },
       },
-      { label: "Paste", icon: "paste", shortcut: "Ctrl+V", disabled: !st.clip || !st.selection, onClick: () => pasteItem(useCal.getState().selection) },
+      { label: "Paste", icon: "paste", shortcut: "Ctrl+V", disabled: !st.clip.length || !st.selection, onClick: () => pasteItem(useCal.getState().selection) },
       { type: "separator" },
       {
         label: "Delete",

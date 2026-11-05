@@ -396,7 +396,9 @@ async fn meeting_create_sends_and_copy_and_search() {
     let s = call(&ctx, "calendar.search", json!({ "query": "q4 strat" })).await;
     assert_eq!(s.as_array().unwrap().len(), 2);
     // Paste: a new meeting with the same people, invited (the original stays as it was)
-    let p = call(&ctx, "calendar.copyEvent", json!({ "id": d["id"], "start": start + 48 * HOUR, "end": start + 49 * HOUR, "invite": true })).await;
+    let p =
+        call(&ctx, "calendar.copyEvent", json!({ "id": d["id"], "start": start + 48 * HOUR, "end": start + 49 * HOUR, "invite": true }))
+            .await;
     assert_eq!(p["isMeeting"], true);
     assert_eq!(p["isOrganizer"], true);
     assert_ne!(p["id"], d["id"]);
@@ -436,6 +438,57 @@ async fn resend_invitation_mails_just_that_attendee() {
     // someone who isn't invited gets nothing
     let r = call(&ctx, "calendar.resendInvite", json!({ "id": d["id"], "emails": ["stranger@x.example"] })).await;
     assert_eq!(r["sent"], json!([]));
+}
+
+/// Someone added to a sent meeting: only they get an invitation (Google would mail every guest);
+/// any other change still goes to everyone through Google.
+#[tokio::test]
+async fn adding_someone_invites_just_them() {
+    let (ctx, _g, a) = setup().await;
+    sync(&ctx, a).await;
+    let start = now() + 5 * 24 * HOUR;
+    let sarah = json!({ "email": "sarah.cohen@harborcap.example", "name": "Sarah Cohen" });
+    let noa = json!({ "email": "noa@oriontech.example", "name": "Noa Shapiro" });
+    let d = call(
+        &ctx,
+        "calendar.createEvent",
+        json!({ "summary": "Q4 strategy", "start": start, "end": start + HOUR, "attendees": [sarah], "sendUpdates": true }),
+    )
+    .await;
+    sync(&ctx, a).await;
+    let api = ctx.api(a).await.unwrap();
+    let invitations = || async { api.gmail_list(Some("subject:Invitation"), &["SENT"], None, 50, false).await.unwrap().messages };
+    let n0 = invitations().await.len();
+    call(&ctx, "calendar.updateEvent", json!({ "id": d["id"], "attendees": [sarah, noa], "sendUpdates": true })).await;
+    let patch: String = ctx
+        .db
+        .read(|c| {
+            Ok(c.query_row("SELECT payload FROM pending_ops WHERE kind='patch' ORDER BY id DESC LIMIT 1", [], |r| r.get(0))
+                .unwrap_or_default())
+        })
+        .await
+        .unwrap();
+    assert!(patch.is_empty() || patch.contains("\"none\""), "the patch itself mails nobody: {patch}");
+    sync(&ctx, a).await;
+    let sent = invitations().await;
+    assert_eq!(sent.len(), n0 + 1, "one invitation");
+    let m = api.gmail_get(&sent[0].id, "raw", &[]).await.unwrap();
+    let raw =
+        base64::Engine::decode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, m.raw.unwrap_or_default().trim_end_matches('=')).unwrap();
+    let text = String::from_utf8_lossy(&raw);
+    assert!(text.contains("To: \"Noa Shapiro\"") || text.contains("To: Noa Shapiro"), "to Noa: {}", &text[..400.min(text.len())]);
+    let after = call(&ctx, "calendar.getEvent", json!({ "id": d["id"] })).await;
+    assert!(after["attendees"].as_array().unwrap().iter().any(|x| x["email"] == "noa@oriontech.example"));
+    // a new time with someone added: an update for everyone (Google's), nothing from us
+    let third = json!({ "email": "dana@orbit.example", "name": "Dana Levi" });
+    call(
+        &ctx,
+        "calendar.updateEvent",
+        json!({ "id": d["id"], "start": start + HOUR, "end": start + 2 * HOUR, "attendees": [sarah, noa, third], "sendUpdates": true }),
+    )
+    .await;
+    sync(&ctx, a).await;
+    assert_eq!(invitations().await.len(), n0 + 1);
 }
 
 #[tokio::test]

@@ -624,6 +624,51 @@ pub(crate) fn send_mode(send: Option<bool>, row: &EventRow) -> String {
     if send.unwrap_or(true) && row.attendees.iter().any(|a| a.is_self != Some(true)) { "all".into() } else { "none".into() }
 }
 
+/// People added to a meeting whose invitations already went out, when that's all that changed
+/// (same subject, place, notes, times and recurrence; nobody removed). Google would e-mail the
+/// update to every guest, so the patch then goes quietly and only these get the invitation.
+pub(crate) fn only_added(before: &EventRow, after: &EventRow, cal: &CalRow) -> Vec<String> {
+    let others = |r: &EventRow| {
+        r.attendees
+            .iter()
+            .filter(|a| a.is_self != Some(true) && a.organizer != Some(true))
+            .map(|a| a.email.to_lowercase())
+            .collect::<Vec<_>>()
+    };
+    let (old, new) = (others(before), others(after));
+    if old.is_empty() || !before.organizer_self || before.gcal_id.is_none() || old.iter().any(|e| !new.contains(e)) {
+        return vec![];
+    }
+    let meeting = |r: &EventRow| {
+        let b = r.to_google(cal);
+        ["summary", "location", "description", "start", "end", "recurrence"].map(|k| b.get(k).cloned())
+    };
+    if meeting(before) != meeting(after) {
+        return vec![];
+    }
+    after.attendees.iter().filter(|a| a.is_self != Some(true) && !old.contains(&a.email.to_lowercase())).map(|a| a.email.clone()).collect()
+}
+
+/// The patch of an edited row, and (only people added) their invitations after it.
+fn enqueue_patch(tx: &Connection, before: &EventRow, after: &EventRow, cal: &CalRow, send: Option<bool>) -> anyhow::Result<()> {
+    let mut mode = send_mode(send, after);
+    let added = if mode == "all" { only_added(before, after, cal) } else { vec![] };
+    if !added.is_empty() {
+        mode = "none".into();
+    }
+    pending::enqueue(
+        tx,
+        after.account_id,
+        sync::DOMAIN,
+        "patch",
+        &PatchOp { event_id: after.id, what: "all".into(), send_updates: Some(mode) },
+    )?;
+    if !added.is_empty() {
+        pending::enqueue(tx, after.account_id, sync::DOMAIN, "invite", &sync::InviteOp { event_id: after.id, emails: added })?;
+    }
+    Ok(())
+}
+
 fn default_calendar(c: &Connection) -> anyhow::Result<CalRow> {
     c.query_row(
         "SELECT c.* FROM calendars c JOIN accounts a ON a.id=c.account_id WHERE a.enabled=1 AND c.access_role IN ('owner','writer') \
@@ -752,6 +797,7 @@ pub(crate) async fn update_event(ctx: Arc<AppCtx>, p: UpdateParams) -> anyhow::R
                     }
                 }
                 let before = (master.start_ms, master.end_ms, master.all_day, master.recurrence.clone());
+                let master0 = master.clone();
                 apply_input(&mut master, &input, &cal, &email, &name, &defs);
                 if let Some(rec) = &input.recurrence {
                     for line in rec.iter().filter(|l| l.starts_with("RRULE")) {
@@ -795,13 +841,7 @@ pub(crate) async fn update_event(ctx: Arc<AppCtx>, p: UpdateParams) -> anyhow::R
                     }
                 }
                 if master.gcal_id.is_some() {
-                    pending::enqueue(
-                        &tx,
-                        row.account_id,
-                        sync::DOMAIN,
-                        "patch",
-                        &PatchOp { event_id: master.id, what: "all".into(), send_updates: Some(send_mode(p.input.send_updates, &master)) },
-                    )?;
+                    enqueue_patch(&tx, &master0, &master, &cal, p.input.send_updates)?;
                 }
                 if row.is_master || !reshaped {
                     if row.is_master { master.id } else { row.id }
@@ -837,13 +877,7 @@ pub(crate) async fn update_event(ctx: Arc<AppCtx>, p: UpdateParams) -> anyhow::R
                     make_placeholders(&tx, &r2, &cal)?;
                 }
                 if r2.gcal_id.is_some() {
-                    pending::enqueue(
-                        &tx,
-                        row.account_id,
-                        sync::DOMAIN,
-                        "patch",
-                        &PatchOp { event_id: r2.id, what: "all".into(), send_updates: Some(send_mode(p.input.send_updates, &r2)) },
-                    )?;
+                    enqueue_patch(&tx, &row, &r2, &cal, p.input.send_updates)?;
                 }
                 if r2.is_master {
                     tx.query_row("SELECT id FROM events WHERE parent_local_id=?1 ORDER BY start_ms LIMIT 1", [r2.id], |r| r.get(0))

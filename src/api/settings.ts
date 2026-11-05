@@ -40,6 +40,10 @@ export const SETTING_DEFAULTS = {
   "calendar.weekStartsOn": 0,
   "calendar.defaultReminderMinutes": 15,
   "calendar.timeScale": 30,
+  /** a second time column in Day / Week (IANA zone; empty = none), and the labels over both columns */
+  "calendar.secondZone": "",
+  "calendar.secondZoneLabel": "",
+  "calendar.zoneLabel": "",
   "app.closeToTray": false,
   /** how many actions Ctrl+Z can undo (1–100); the history is not kept across restarts */
   "app.undoSteps": 20,

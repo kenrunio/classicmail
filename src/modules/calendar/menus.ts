@@ -4,7 +4,21 @@ import { rpc } from "../../api/rpc";
 import type { MenuItem } from "../../ui";
 import { allDayRange, dayStart } from "./dates";
 import { goToDateBox } from "./dialogs";
-import { copyItem, deleteItem, mailAboutItem, newAppointment, openItem, pasteItem, proposeNewTime, quickPrint, respondTo, setCategories, setPrivate, setShowAs, SHOW_AS } from "./actions";
+import {
+  copyItem,
+  deleteItem,
+  mailAboutItem,
+  newAppointment,
+  openItem,
+  pasteItem,
+  proposeNewTime,
+  quickPrint,
+  respondTo,
+  setCategories,
+  setPrivate,
+  setShowAs,
+  SHOW_AS,
+} from "./actions";
 import { categorizeMenu, currentCategories } from "./categories";
 import { useCal, type Selection } from "./state";
 
@@ -60,7 +74,7 @@ export function slotMenu(sel: Selection | null, timeScale: number): MenuItem[] {
     { label: "New All Day Event", icon: "calendar", onClick: () => newFromSelection(sel, { allDay: true }) },
     { label: "New Meeting Request", icon: "meeting-request", onClick: () => newFromSelection(sel, { meeting: true }) },
     { type: "separator" },
-    { label: "Paste", icon: "paste", shortcut: "Ctrl+V", disabled: !useCal.getState().clip, onClick: () => pasteItem(sel) },
+    { label: "Paste", icon: "paste", shortcut: "Ctrl+V", disabled: !useCal.getState().clip.length, onClick: () => pasteItem(sel) },
     { type: "separator" },
     { label: "Go to Today", icon: "today", onClick: goToToday },
     { label: "Go to Date…", shortcut: "Ctrl+G", onClick: goToDate },

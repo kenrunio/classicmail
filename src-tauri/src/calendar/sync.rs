@@ -68,6 +68,14 @@ pub struct DeleteOp {
     pub send_updates: Option<String>,
 }
 
+/// The invitation e-mailed to people just added to a meeting (its patch went without updates).
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InviteOp {
+    pub event_id: i64,
+    pub emails: Vec<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MoveOp {
@@ -237,6 +245,16 @@ async fn push_one(ctx: &Arc<AppCtx>, api: &Api, op: PendingOp) -> anyhow::Result
         "delete" => {
             let p: DeleteOp = op.payload()?;
             gcal::delete_event(api, &p.calendar_gcal_id, &p.gcal_id, p.send_updates.as_deref().unwrap_or("none")).await
+        }
+        "invite" => {
+            // after its patch (ops run in order), so Google has them on the guest list
+            let p: InviteOp = op.payload()?;
+            let r = super::invite::send_invites(ctx.clone(), p.event_id, &p.emails, None).await?;
+            if let Some(e) = r.error {
+                // not retried: the ones before it already have theirs
+                log::warn!("inviting the people added to event {} stopped: {e}", p.event_id);
+            }
+            Ok(())
         }
         other => {
             log::warn!("unknown calendar op {other}");

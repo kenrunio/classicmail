@@ -13,7 +13,8 @@ import { calLabel } from "./NavPane";
 import { itemMenu, slotMenu } from "./menus";
 import { askSendUpdate, openItem } from "./actions";
 import { newFromSelection } from "./menus";
-import { useCal, type CalSettings, type Selection } from "./state";
+import { isPicked, togglePick, useCal, type CalSettings, type Selection } from "./state";
+import { localZone, offsetAt, zoneAbbrev } from "./timeZones";
 
 const SLOT_H = 21;
 const LANE_H = 20;
@@ -32,6 +33,16 @@ type Drag =
   | { kind: "selectDays"; anchorDay: number }
   | { kind: "move"; ev: CalEvent; offset: number; x0: number; y0: number; moved: boolean; band: boolean; dayIdx0: number }
   | { kind: "resize"; ev: CalEvent; edge: "start" | "end"; moved: boolean };
+
+/** The ruler's text for a time of day (minutes, any day): "09" "00", "9" "am", or "5" "30" in a
+ *  zone on the half hour. */
+export function hourLabel(min: number, h12: boolean): { n: string; s: string } {
+  const m = ((min % 1440) + 1440) % 1440;
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  const n = h12 ? String(h % 12 === 0 ? 12 : h % 12) : String(h).padStart(2, "0");
+  return { n, s: mm ? String(mm).padStart(2, "0") : h12 ? (h < 12 ? "am" : "pm") : "00" };
+}
 
 export function DayWeekGrid({
   days,
@@ -53,7 +64,7 @@ export function DayWeekGrid({
   /** open scrolled to an hour before this time (a meeting) instead of the start of the working day */
   scrollTo?: number;
 }) {
-  const { selection, selectedId, set } = useCal();
+  const { selection, selectedId, alsoSelected, set } = useCal();
   const cats = useCategories();
   const scale = settings.timeScale;
   const pxPerMin = SLOT_H / scale;
@@ -425,7 +436,13 @@ export function DayWeekGrid({
   };
 
   // ---- rendering ----------------------------------------------------------------------------
-  const colW = (width - RULER_W - 16) / Math.max(1, n);
+  // Options › Show a second time zone: its column right of yours, both labelled at the top
+  const zone2 = settings.secondZone;
+  const rulerW = zone2 ? RULER_W * 2 : RULER_W;
+  const day0 = days[0]?.getTime() ?? now;
+  // how far its clock is from yours on the first day shown (minutes)
+  const zoneDiff = zone2 ? Math.round((offsetAt(day0 + 12 * 60 * MIN, zone2) - offsetAt(day0 + 12 * 60 * MIN, localZone())) / MIN) : 0;
+  const colW = (width - rulerW - 16) / Math.max(1, n);
   const groupStart = (i: number) => cols[i].day === 0 && cols[i].group > 0;
   const today = dayStart(now).getTime();
   const bandLanes = Math.max(1, band.lanes + (inline?.allDay ? 1 : 0));
@@ -440,7 +457,7 @@ export function DayWeekGrid({
       colors.length > 1 && (ev.busyStatus === "busy" || !ev.busyStatus)
         ? `linear-gradient(${colors.map((h, i) => `${apptColors(h).stripe} ${(i * 100) / colors.length}% ${((i + 1) * 100) / colors.length}%`).join(", ")})`
         : stripeBackground(ev.busyStatus, color);
-    const selected = ev.id === selectedId;
+    const selected = isPicked({ selectedId, alsoSelected }, ev.id);
     const short = !opts.band && typeof style.height === "number" && style.height < SLOT_H * 1.5;
     const dragging = ghost?.ev.id === ev.id && !ghost.copy;
     return (
@@ -452,6 +469,12 @@ export function DayWeekGrid({
         onMouseDown={(e) => {
           if (e.button !== 0) return;
           e.stopPropagation();
+          // Ctrl+click with an item selected: one more (or one fewer) selected, to copy together
+          if (e.ctrlKey && selectedId !== null && selectedId !== ev.id) {
+            togglePick(ev);
+            rootRef.current?.focus({ preventScroll: true });
+            return;
+          }
           set({ selectedId: ev.id, selection: null });
           if (!canDrag(ev)) {
             rootRef.current?.focus({ preventScroll: true });
@@ -477,7 +500,7 @@ export function DayWeekGrid({
         onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          set({ selectedId: ev.id, selection: null });
+          if (!isPicked(useCal.getState(), ev.id)) set({ selectedId: ev.id, selection: null });
           showMenu(e.clientX, e.clientY, itemMenu(ev));
         }}
       >
@@ -514,7 +537,7 @@ export function DayWeekGrid({
     <div className="cm-cal-dw" ref={rootRef} tabIndex={0} onKeyDown={onKeyDown}>
       {/* side by side: one coloured tab per calendar (overlaid calendars share their group) */}
       {showTabs && (
-        <div className="cm-cal-dw-tabs" style={{ gridTemplateColumns: `${RULER_W}px repeat(${G}, 1fr) 16px` }}>
+        <div className="cm-cal-dw-tabs" style={{ gridTemplateColumns: `${rulerW}px repeat(${G}, 1fr) 16px` }}>
           <div className="cm-cal-corner" />
           {groups.map((g, gi) => (
             <div key={gi} className={`cm-cal-grouptabs${gi > 0 ? " group-start" : ""}`}>
@@ -550,8 +573,15 @@ export function DayWeekGrid({
         </div>
       )}
       {/* day headers */}
-      <div className="cm-cal-dw-head" style={{ gridTemplateColumns: `${RULER_W}px repeat(${n}, 1fr) 16px` }}>
-        <div className="cm-cal-corner" />
+      <div className="cm-cal-dw-head" style={{ gridTemplateColumns: `${rulerW}px repeat(${n}, 1fr) 16px` }}>
+        {zone2 ? (
+          <div className="cm-cal-corner cm-cal-zones">
+            <span title={localZone()}>{settings.zoneLabel || zoneAbbrev(localZone(), day0)}</span>
+            <span title={zone2}>{settings.secondZoneLabel || zoneAbbrev(zone2, day0)}</span>
+          </div>
+        ) : (
+          <div className="cm-cal-corner" />
+        )}
         {cols.map((c, ci) => {
           const d = days[c.day];
           const isToday = d.getTime() === today;
@@ -570,7 +600,7 @@ export function DayWeekGrid({
         <div className="cm-cal-corner" />
       </div>
       {/* all-day band */}
-      <div className="cm-cal-dw-band" style={{ gridTemplateColumns: `${RULER_W}px 1fr 16px` }}>
+      <div className="cm-cal-dw-band" style={{ gridTemplateColumns: `${rulerW}px 1fr 16px` }}>
         <div className="cm-cal-corner" />
         <div
           className="cm-cal-band"
@@ -674,14 +704,19 @@ export function DayWeekGrid({
       {/* time grid */}
       <div className="cm-cal-dw-scroll" ref={scrollRef}>
         <div className="cm-cal-dw-body" style={{ height: 1440 * pxPerMin }}>
-          <div className="cm-cal-ruler" style={{ width: RULER_W }}>
-            {Array.from({ length: 24 }, (_, h) => (
-              <div key={h} className="cm-cal-hour" style={{ top: h * 60 * pxPerMin, height: 60 * pxPerMin }}>
-                <span className="cm-cal-hour-n">{hourCycle ? (h % 12 === 0 ? 12 : h % 12) : String(h).padStart(2, "0")}</span>
-                <span className="cm-cal-hour-s">{hourCycle ? (h === 0 || h === 12 ? (h === 0 ? "am" : "pm") : h < 12 ? "am" : "pm") : "00"}</span>
-              </div>
-            ))}
-          </div>
+          {[0, ...(zone2 ? [zoneDiff] : [])].map((diff, z) => (
+            <div key={z} className={`cm-cal-ruler${z ? " second" : ""}`} style={{ width: RULER_W }}>
+              {Array.from({ length: 24 }, (_, h) => {
+                const t = hourLabel(h * 60 + diff, hourCycle);
+                return (
+                  <div key={h} className="cm-cal-hour" style={{ top: h * 60 * pxPerMin, height: 60 * pxPerMin }}>
+                    <span className="cm-cal-hour-n">{t.n}</span>
+                    <span className="cm-cal-hour-s">{t.s}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
           <div
             className="cm-cal-cols"
             ref={colsRef}

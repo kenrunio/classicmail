@@ -273,16 +273,21 @@ pub struct ResendParams {
 #[derive(Serialize, Debug)]
 pub struct Resent {
     /// the addresses the invitation went to
-    sent: Vec<String>,
+    pub(crate) sent: Vec<String>,
     /// why it stopped, when a send failed (the ones in `sent` still went)
-    error: Option<String>,
+    pub(crate) error: Option<String>,
 }
 
 pub async fn resend_invite(ctx: Arc<AppCtx>, p: ResendParams) -> anyhow::Result<Resent> {
+    send_invites(ctx, p.id, &p.emails, p.series.as_deref()).await
+}
+
+/// The meeting's invitation to just these attendees (Resend Invitation; people added to it).
+pub(crate) async fn send_invites(ctx: Arc<AppCtx>, id: i64, emails: &[String], series: Option<&str>) -> anyhow::Result<Resent> {
     let (row, cal, me) = ctx
         .db
         .read(move |c| {
-            let row = super::load_row(c, p.id)?;
+            let row = super::load_row(c, id)?;
             let cal = super::model::get_cal(c, row.calendar_id)?;
             let me = super::account_identity(c, row.account_id)?;
             Ok((row, cal, me))
@@ -302,21 +307,21 @@ pub async fn resend_invite(ctx: Arc<AppCtx>, p: ResendParams) -> anyhow::Result<
     let organizer = ev.organizer.as_ref().and_then(|o| o.email.clone()).unwrap_or(me.0.clone());
     let now = crate::clock::now();
     let mut sent = vec![];
-    for email in &p.emails {
+    for email in emails {
         let Some(a) = ev.attendees.iter().flatten().find(|a| a.email.eq_ignore_ascii_case(email)) else { continue };
         let name = a.display_name.clone().unwrap_or_default();
-        let raw = invite_message(&ev, (&organizer, &me.1), (&a.email, &name), cal.tz(), now, p.series.as_deref())?;
+        let raw = invite_message(&ev, (&organizer, &me.1), (&a.email, &name), cal.tz(), now, series)?;
         if let Err(e) = api.gmail_send(&raw, None).await {
             // nothing sent yet: a plain failure; else say which ones went, so they aren't sent twice
             if sent.is_empty() {
                 return Err(e);
             }
-            log::warn!("resending the invitation of event {} stopped after {} attendee(s): {}", p.id, sent.len(), crate::logging::err(&e));
+            log::warn!("sending the invitation of event {} stopped after {} attendee(s): {}", id, sent.len(), crate::logging::err(&e));
             return Ok(Resent { sent, error: Some(e.to_string()) });
         }
         sent.push(email.clone());
     }
-    log::info!("resent the invitation of event {} to {} attendee(s)", p.id, sent.len());
+    log::info!("sent the invitation of event {} to {} attendee(s)", id, sent.len());
     Ok(Resent { sent, error: None })
 }
 

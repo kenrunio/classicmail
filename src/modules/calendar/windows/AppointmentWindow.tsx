@@ -41,7 +41,8 @@ interface Form {
   /** for all-day items: the inclusive last day, as Outlook shows it */
   endDate: string;
   endMin: number;
-  attendees: Addr[];
+  /** the To people, then the Cc ones (Google's optional attendees) */
+  attendees: Attendee[];
   reminder: number;
   busyStatus: BusyStatus;
   isPrivate: boolean;
@@ -51,6 +52,16 @@ interface Form {
   categories: string[];
   /** the zone the start / end times are shown and typed in (Time Zones); default your own */
   timeZone: string;
+}
+
+type Attendee = Addr & { optional?: boolean };
+
+/** The To and Cc boxes as the form's attendee list (someone in both: To). */
+function packAttendees(to: Recipient[], cc: Recipient[]): Attendee[] {
+  const req = to.filter((a) => !a.suggested).map((a) => ({ name: a.name, email: a.email }));
+  const have = new Set(req.map((a) => a.email.toLowerCase()));
+  const opt = cc.filter((a) => !a.suggested && !have.has(a.email.toLowerCase())).map((a) => ({ name: a.name, email: a.email, optional: true }));
+  return [...req, ...opt];
 }
 
 function fromDetail(d: EventDetail, series: boolean): Form {
@@ -71,7 +82,10 @@ function fromDetail(d: EventDetail, series: boolean): Form {
     startMin: d.allDay ? 0 : s.min,
     endDate: d.allDay ? dayKey(end - 1) : e.date,
     endMin: d.allDay ? 0 : e.min,
-    attendees: others.map((a) => ({ name: a.name, email: a.email })),
+    attendees: [
+      ...others.filter((a) => !a.optional).map((a) => ({ name: a.name, email: a.email })),
+      ...others.filter((a) => a.optional).map((a) => ({ name: a.name, email: a.email, optional: true })),
+    ],
     reminder: d.reminderMinutes ?? -1,
     busyStatus: d.busyStatus,
     isPrivate: d.isPrivate,
@@ -109,6 +123,14 @@ export default function AppointmentWindow() {
   const [form, setForm] = useState<Form | null>(null);
   const [initial, setInitial] = useState<string>("");
   const [recips, setRecips] = useState<Recipient[]>([]);
+  const [ccRecips, setCcRecips] = useState<Recipient[]>([]);
+  // both boxes as last set, so changing one keeps the other in the form's attendee list
+  const lists = useRef<{ to: Recipient[]; cc: Recipient[] }>({ to: [], cc: [] });
+  const showLists = (list: Attendee[]) => {
+    lists.current = { to: toRecipients(list.filter((a) => !a.optional)), cc: toRecipients(list.filter((a) => a.optional)) };
+    setRecips(lists.current.to);
+    setCcRecips(lists.current.cc);
+  };
   const [showNames, setShowNames] = useState(false);
   // Time Zones: the zone list beside the start time (on by itself for an item set in another zone)
   const [showZones, setShowZones] = useState(false);
@@ -157,7 +179,7 @@ export default function AppointmentWindow() {
         const to = params.get("to");
         if (to) {
           f.attendees = parseAddrs(to, []);
-          setRecips(toRecipients(f.attendees));
+          showLists(f.attendees);
         }
         setForm(f);
         setInitial(JSON.stringify(f));
@@ -178,7 +200,7 @@ export default function AppointmentWindow() {
         const f = fromDetail(d, sc === "series");
         if (!d.allDay && f.timeZone !== localZone()) setShowZones(true);
         setForm(f);
-        setRecips(toRecipients(f.attendees));
+        showLists(f.attendees);
         setInitial(JSON.stringify(f));
       } catch (e) {
         await errorBox(e);
@@ -205,13 +227,18 @@ export default function AppointmentWindow() {
   /** invitations already went out (a saved meeting), as opposed to attendees just being added */
   const sentMeeting = !!detail?.isMeeting;
   const toRef = useRef<RecipientFieldHandle>(null);
-  const setAttendees = (list: Recipient[]) => {
-    setRecips(list);
-    setForm((f) => (f ? { ...f, attendees: list.filter((a) => !a.suggested).map((a) => ({ name: a.name, email: a.email })) } : f));
+  const ccRef = useRef<RecipientFieldHandle>(null);
+  const setLists = (to: Recipient[], cc: Recipient[]) => {
+    lists.current = { to, cc };
+    setRecips(to);
+    setCcRecips(cc);
+    setForm((f) => (f ? { ...f, attendees: packAttendees(to, cc) } : f));
   };
-  /** the attendee list including whatever is still being typed in the To box (a usual group's
-   *  people only once kept) */
-  const attendeeList = (): Addr[] => (toRef.current?.commit() ?? recips).filter((a) => !a.suggested).map((a) => ({ name: a.name, email: a.email }));
+  const setAttendees = (list: Recipient[]) => setLists(list, lists.current.cc);
+  const setCc = (list: Recipient[]) => setLists(lists.current.to, list);
+  /** the attendee list including whatever is still being typed in the To and Cc boxes (a usual
+   *  group's people only once kept) */
+  const attendeeList = (): Attendee[] => packAttendees(toRef.current?.commit() ?? recips, ccRef.current?.commit() ?? ccRecips);
   // Tab after a name: the people usually with them (usualGroup.ts), all into this one box
   const group = useUsualGroup({ to: recips, setTo: setAttendees, next: () => subjectRef.current?.focus() });
 
@@ -496,21 +523,25 @@ export default function AppointmentWindow() {
   // ---- attendees ----------------------------------------------------------------------------
   const checkNames = async () => {
     if (!form) return;
-    const list = toRef.current?.commit() ?? recips;
-    const resolved: Recipient[] = [];
-    for (const a of list) {
-      if (isValidEmail(a.email)) {
-        resolved.push({ ...a, resolved: true });
-        continue;
+    const resolve = async (list: Recipient[]) => {
+      const resolved: Recipient[] = [];
+      for (const a of list) {
+        if (isValidEmail(a.email)) {
+          resolved.push({ ...a, resolved: true });
+          continue;
+        }
+        try {
+          const r = await rpc<{ name: string; email: string }[]>("contacts.autocomplete", { query: a.name || a.email, limit: 1 });
+          resolved.push(r[0] ? { name: r[0].name, email: r[0].email, resolved: true } : a);
+        } catch {
+          resolved.push(a);
+        }
       }
-      try {
-        const r = await rpc<{ name: string; email: string }[]>("contacts.autocomplete", { query: a.name || a.email, limit: 1 });
-        resolved.push(r[0] ? { name: r[0].name, email: r[0].email, resolved: true } : a);
-      } catch {
-        resolved.push(a);
-      }
-    }
-    setAttendees(resolved);
+      return resolved;
+    };
+    const to = toRef.current?.commit() ?? recips;
+    const cc = ccRef.current?.commit() ?? ccRecips;
+    setLists(await resolve(to), await resolve(cc));
   };
 
   // a new meeting starts in the To box (unless the attendees came with it)
@@ -874,8 +905,16 @@ export default function AppointmentWindow() {
               </span>
               <span className="cm-label">Required:</span>
               <span className="cm-ellipsis" title={detail.attendees.map((a) => `${a.name || a.email}: ${RESP_LABEL[a.response]}`).join("\n")}>
-                <AddressTokens list={detail.attendees.filter((a) => !a.organizer)} />
+                <AddressTokens list={detail.attendees.filter((a) => !a.organizer && !a.optional)} />
               </span>
+              {detail.attendees.some((a) => a.optional && !a.organizer) && (
+                <>
+                  <span className="cm-label">Cc:</span>
+                  <span className="cm-ellipsis" title="Optional attendees">
+                    <AddressTokens list={detail.attendees.filter((a) => a.optional && !a.organizer)} />
+                  </span>
+                </>
+              )}
             </>
           )}
           {meeting && organizer && (
@@ -885,6 +924,12 @@ export default function AppointmentWindow() {
               </button>
               <div className="cm-cal-to">
                 <RecipientField ref={toRef} label="To" value={recips} onChange={setAttendees} group={group} />
+              </div>
+              <button className="cm-field-label-btn" onClick={() => setShowNames(true)} disabled={readOnly} title="Optional attendees">
+                Cc...
+              </button>
+              <div className="cm-cal-to">
+                <RecipientField ref={ccRef} label="Cc" value={ccRecips} onChange={setCc} />
               </div>
             </>
           )}
@@ -1038,10 +1083,9 @@ export default function AppointmentWindow() {
       )}
       {showNames && (
         <SelectNamesDialog
-          initial={{ to: recips.map((a) => ({ name: a.name, email: a.email })), cc: [], bcc: [] }}
+          initial={{ to: recips.map((a) => ({ name: a.name, email: a.email })), cc: ccRecips.map((a) => ({ name: a.name, email: a.email })), bcc: [] }}
           onOk={(v) => {
-            const all = [...v.to, ...v.cc, ...v.bcc];
-            setAttendees(toRecipients(all));
+            setLists(toRecipients(v.to), toRecipients([...v.cc, ...v.bcc]));
             set({ meeting: true });
             setShowNames(false);
           }}
