@@ -3,7 +3,7 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
-## Unreleased
+## 1.24.8 — 2026-11-08
 - **Arrow keys keep a usual group**: when Tab after a name brings in the people you usually write
   to with them, an arrow key now keeps them too (staying in To), as Tab does; other keys still
   drop them.
