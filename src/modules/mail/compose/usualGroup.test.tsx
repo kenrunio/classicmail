@@ -102,6 +102,15 @@ describe("usual groups in the To box", () => {
     expect(names("to")).toEqual(["Yoav Shalev", "someone@other.example"]);
   });
 
+  it("an arrow key keeps them, staying in To", async () => {
+    await type(input("to"), "Yoav");
+    await key(input("to"), "Tab");
+    await key(input("to"), "ArrowLeft");
+    expect(names("to")).toEqual(["Yoav Shalev", "Dana Levi"]);
+    expect(names("cc")).toEqual(["Ron Adler"]);
+    expect(document.activeElement).toBe(input("to"));
+  });
+
   it("typing a letter drops them and starts the next name", async () => {
     await type(input("to"), "Yoav");
     await key(input("to"), "Tab");

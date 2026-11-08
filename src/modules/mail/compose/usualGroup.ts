@@ -1,8 +1,8 @@
 // Usual groups: type a name in To and press Tab, and the people you usually write to with that
 // person appear — in To or Cc, where they usually were (src-tauri mail/compose/recipients.rs,
 // learnt from your sent mail and the meetings you organised) — highlighted, the cursor still in
-// To. Tab keeps them and moves to Cc; Delete, Backspace, Esc, typing or leaving the box drops
-// them. Rejected, the next name you add asks again (the group those people share); kept, the rest
+// To. Tab keeps them and moves to Cc; an arrow key keeps them where you are; Delete, Backspace,
+// Esc, typing or leaving the box drops them. Rejected, the next name you add asks again (the group those people share); kept, the rest
 // of the message works as usual.
 import { useRef, useState } from "react";
 import { rpc } from "../../../api/rpc";
@@ -15,8 +15,8 @@ export interface GroupHooks {
   afterTab: (list: Recipient[]) => Promise<boolean>;
   /** suggestions are showing */
   pending: boolean;
-  /** Tab: keep them, then the next box */
-  accept: () => void;
+  /** Tab: keep them, then the next box (an arrow key: keep them, stay) */
+  accept: (next?: boolean) => void;
   /** anything else: drop them */
   reject: () => void;
 }
@@ -88,13 +88,13 @@ export function useUsualGroup(o: {
       setPending(true);
       return true;
     },
-    accept: () => {
+    accept: (next = true) => {
       const c = cur.current;
       c.setTo(c.to.map((r) => (r.suggested ? { ...r, suggested: false } : r)));
       if (c.cc?.some((r) => r.suggested)) c.setCc?.(c.cc.map((r) => (r.suggested ? { ...r, suggested: false } : r)));
       done.current = true;
       setPending(false);
-      c.next();
+      if (next) c.next();
     },
     reject,
     /** before Send / Save: suggestions nobody kept don't go out */

@@ -251,11 +251,16 @@ export const RecipientField = forwardRef<
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Control" || e.key === "Shift" || e.key === "Alt" || e.key === "Meta") return;
-    // a usual group showing: Tab keeps it (and goes to Cc), anything else drops it
+    // a usual group showing: Tab keeps it (and goes to Cc), an arrow key keeps it (and moves as
+    // usual), anything else drops it
     if (group?.pending) {
       if (e.key === "Tab" && !e.shiftKey) {
         e.preventDefault();
         group.accept();
+        return;
+      }
+      if (e.key.startsWith("Arrow")) {
+        group.accept(false);
         return;
       }
       group.reject();

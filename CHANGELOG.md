@@ -3,6 +3,11 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
+## Unreleased
+- **Arrow keys keep a usual group**: when Tab after a name brings in the people you usually write
+  to with them, an arrow key now keeps them too (staying in To), as Tab does; other keys still
+  drop them.
+
 ## 1.24.7 — 2026-11-05
 - **Cc on meetings**: the meeting window has a Cc row under To, for people whose attendance is
   optional (Google's optional guests). A meeting you're invited to shows them on a Cc row too.
