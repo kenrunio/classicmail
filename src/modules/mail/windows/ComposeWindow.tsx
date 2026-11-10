@@ -167,6 +167,16 @@ interface AttachItem {
 }
 
 /** A caret at the start of `page`. */
+/** A dropped file's contents, base64. */
+function base64Of(f: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).replace(/^data:[^,]*,/, ""));
+    r.onerror = () => reject(r.error ?? new Error(`${f.name} couldn't be read`));
+    r.readAsDataURL(f);
+  });
+}
+
 function pageStart(page: HTMLElement): Range {
   const r = document.createRange();
   r.setStart(page, 0);
@@ -994,12 +1004,65 @@ function ComposeForm({ prep, font, merge0 }: { prep: Prepared; font: ComposeFont
     },
     [markDirty],
   );
+  /** A web page or Markdown document's e-mail HTML into the text: at `at` (where it was dropped on
+   *  the text) or the cursor, on a line of its own. */
+  const insertDocument = (html: string, at?: { x: number; y: number }) => {
+    const page = pageRef.current;
+    const r = at ? document.caretRangeFromPoint?.(at.x, at.y) : null;
+    if (page && r && page.contains(r.startContainer)) {
+      page.focus();
+      const s = window.getSelection();
+      s?.removeAllRanges();
+      s?.addRange(r);
+    } else restoreSel();
+    // inserted in the middle of a line, its first paragraph would join that line
+    const sel = window.getSelection();
+    const anchor = sel?.anchorNode;
+    const line = (anchor instanceof Element ? anchor : anchor?.parentElement)?.closest("p, div, li, h1, h2, h3, h4, td");
+    if (line && page?.contains(line) && line !== page && (line.textContent ?? "").replace(/\u200b/g, "").trim()) {
+      // dropped on a line: after it, not splitting it
+      if (at && sel) {
+        const end = document.createRange();
+        end.selectNodeContents(line);
+        end.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(end);
+      }
+      exec("insertParagraph");
+    }
+    // an empty heading line would make everything inserted into it a heading
+    const here = window.getSelection()?.anchorNode;
+    if ((here instanceof Element ? here : here?.parentElement)?.closest("h1, h2, h3, h4, h5, h6")) exec("formatBlock", "p");
+    exec("insertHTML", html);
+  };
+  /** A web page or Markdown file (a path, or a dropped file's text): its e-mail HTML. Markdown comes
+   *  in as its formatting; a web page as it shows on screen, opened in a hidden window of its own
+   *  (src-tauri/src/mail/compose/webpage.rs, compose/webPage.ts). */
+  const documentHtml = async (source: string) =>
+    /\.(md|markdown)(?:[?#].*)?$/i.test(source.trim().replace(/"$/, ""))
+      ? markdownToHtml(await rpc<string>("mail.compose.readText", { source }))
+      : await rpc<string>("mail.compose.webPage", { source, script: inlinePageScript() });
+  const isDocument = (name: string) => /\.(md|markdown|html?)$/i.test(name);
+
   // Files dropped anywhere on the window (from Explorer, the desktop, an attachment dragged out of
-  // another message) are attached, as in Outlook. The page gets their contents but not their
-  // paths, so the back end keeps a copy to attach (src-tauri/src/mail/compose/dropped.rs).
-  const attachDropped = async (files: File[]) => {
+  // another message) are attached, as in Outlook — except a web page or Markdown file, which goes
+  // into the text, as it looks. The page gets their contents but not their paths, so the back end
+  // keeps a copy (src-tauri/src/mail/compose/dropped.rs).
+  const attachDropped = async (files: File[], at?: { x: number; y: number }) => {
     const paths: string[] = [];
     for (const f of files) {
+      if (isDocument(f.name) && f.size <= 25 * 1024 * 1024) {
+        try {
+          const html = /\.html?$/i.test(f.name)
+            ? await documentHtml(await rpc<string>("mail.compose.stageDropped", { name: f.name, data: await base64Of(f) }))
+            : markdownToHtml(await f.text());
+          insertDocument(html, at);
+          markDirty();
+        } catch (e) {
+          errorBox(e, "Insert Web Page");
+        }
+        continue;
+      }
       if (!f.size && !f.type) {
         alertBox(`"${f.name}" looks like a folder; folders can't be attached.`, "Attach File", "warning");
         continue;
@@ -1009,13 +1072,7 @@ function ComposeForm({ prep, font, merge0 }: { prep: Prepared; font: ComposeFont
         continue;
       }
       try {
-        const data = await new Promise<string>((resolve, reject) => {
-          const r = new FileReader();
-          r.onload = () => resolve(String(r.result).replace(/^data:[^,]*,/, ""));
-          r.onerror = () => reject(r.error ?? new Error(`${f.name} couldn't be read`));
-          r.readAsDataURL(f);
-        });
-        paths.push(await rpc<string>("mail.compose.stageDropped", { name: f.name, data }));
+        paths.push(await rpc<string>("mail.compose.stageDropped", { name: f.name, data: await base64Of(f) }));
       } catch (e) {
         errorBox(e);
       }
@@ -2144,7 +2201,7 @@ function ComposeForm({ prep, font, merge0 }: { prep: Prepared; font: ComposeFont
         if (!hasFiles(e) || !e.dataTransfer.files.length) return;
         e.preventDefault();
         e.stopPropagation();
-        void attachDropped(Array.from(e.dataTransfer.files));
+        void attachDropped(Array.from(e.dataTransfer.files), { x: e.clientX, y: e.clientY });
       }}
     >
       <Ribbon tabs={tabs} orbMenu={orbMenu} quickAccess={quickAccess} />
@@ -2430,20 +2487,9 @@ function ComposeForm({ prep, font, merge0 }: { prep: Prepared; font: ComposeFont
         <WebPageDialog
           onClose={() => setWebPageOpen(false)}
           onOk={async (source) => {
-            // the page opens in a hidden window of its own and comes back as e-mail HTML
-            // (src-tauri/src/mail/compose/webpage.rs, compose/webPage.ts), inserted at the cursor
+            // inserted at the cursor
             try {
-              // a Markdown file or link comes in as its formatting; a web page as it shows on screen
-              const html = /\.(md|markdown)(?:[?#].*)?$/i.test(source.trim().replace(/"$/, ""))
-                ? markdownToHtml(await rpc<string>("mail.compose.readText", { source }))
-                : await rpc<string>("mail.compose.webPage", { source, script: inlinePageScript() });
-              // on a line of its own: inserted in the middle of a line, its first paragraph would
-              // join that line
-              restoreSel();
-              const at = window.getSelection()?.anchorNode;
-              const line = (at instanceof Element ? at : at?.parentElement)?.closest("p, div, li, h1, h2, h3, h4, td");
-              if (line && pageRef.current?.contains(line) && line !== pageRef.current && (line.textContent ?? "").replace(/\u200b/g, "").trim()) exec("insertParagraph");
-              exec("insertHTML", html);
+              insertDocument(await documentHtml(source));
             } catch (e) {
               errorBox(e, "Insert Web Page");
               throw e;
