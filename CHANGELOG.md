@@ -3,7 +3,7 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
-## Unreleased
+## 1.24.9 — 2026-11-10
 - **A dropped web page or Markdown file goes into the message**: drag a .md or .html file onto a
   message you're writing and it appears in the text, formatted as it looks (as Include › Web Page
   or MD does), where you dropped it; other files are still attached.
