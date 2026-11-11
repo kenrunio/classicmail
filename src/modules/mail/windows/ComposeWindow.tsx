@@ -80,6 +80,7 @@ import {
 import { paintedHtml, paintFromDom, paintRange, type Paint } from "../compose/painter";
 import * as qt from "../compose/pageTables";
 import { attachResizer, measureEven, type ResizeTarget } from "../compose/tableSize";
+import { attachTableSelect } from "../compose/tableSelect";
 import { domFormats } from "../compose/formatState";
 import { resetSelState, trackSelection, useSelState, type Command, type SelState } from "../compose/selState";
 import { SignaturesDialog, DEFAULT_COMPOSE_FONT, COMPOSE_FONT_KEY, type ComposeFont } from "../compose/SignaturesDialog";
@@ -1647,6 +1648,14 @@ function ComposeForm({ prep, font, merge0 }: { prep: Prepared; font: ComposeFont
     const page = pageRef.current;
     if (!page || plainText) return;
     return attachResizer(page, (t, px) => resizeTo.current(t, px));
+  }, [plainText]);
+  // picking whole rows / columns; Backspace deletes them, Delete empties cells (tableSelect.ts)
+  const changeTableRef = useRef(changeTable);
+  changeTableRef.current = changeTable;
+  useEffect(() => {
+    const page = pageRef.current;
+    if (!page || plainText) return;
+    return attachTableSelect(page, (table, f) => changeTableRef.current(table, f));
   }, [plainText]);
 
   // icons only, with tooltips (Word's Table Design / Layout essentials in one small group)

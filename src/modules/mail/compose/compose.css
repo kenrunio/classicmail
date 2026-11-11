@@ -308,6 +308,28 @@ body.cm-resize-row,
 body.cm-resize-row * {
   cursor: row-resize !important;
 }
+/* picking table rows / columns (tableSelect.ts): a black arrow at a row's left / a column's top,
+   and the picked cells shaded */
+body.cm-pick-row,
+body.cm-pick-row * {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Cpath d='M2 6h7V2l6 6-6 6v-4H2z' fill='%23000' stroke='%23fff' transform='rotate(0 8 8)'/%3E%3C/svg%3E")
+      8 8,
+    e-resize !important;
+}
+body.cm-pick-col,
+body.cm-pick-col * {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Cpath d='M2 6h7V2l6 6-6 6v-4H2z' fill='%23000' stroke='%23fff' transform='rotate(90 8 8)'/%3E%3C/svg%3E")
+      8 8,
+    s-resize !important;
+}
+.cm-table-pick {
+  position: fixed;
+  z-index: 5;
+  pointer-events: none;
+  background: rgba(43, 87, 154, 0.22);
+}
 .cm-resize-guide {
   position: fixed;
   z-index: 1000;

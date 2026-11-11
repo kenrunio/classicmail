@@ -1291,6 +1291,12 @@
   overflow: auto;
   background: #fff;
 }
+/* the notes and the video-call details can be selected with the mouse and copied */
+.cm-cal-notes-view,
+.cm-cal-conference {
+  user-select: text;
+  -webkit-user-select: text;
+}
 .cm-cal-notes-view.editable {
   cursor: text;
 }

@@ -3,6 +3,16 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
+## Unreleased
+- **Meeting notes can be selected and copied**: the notes (and the video-call details) shown with
+  their links can now be selected with the mouse — across a link too — and copied, without the
+  notes first switching to editing. A plain click still edits them, with the cursor where you
+  clicked.
+- **Table rows and columns in a message, like Word**: selecting across two or more rows of a table
+  selects the whole rows; a click just left of a row selects the row, just above a column the
+  column (drag for more). Backspace deletes the selected rows or columns; Delete empties the
+  selected cells. Ctrl+Z undoes either.
+
 ## 1.24.9 — 2026-11-10
 - **A dropped web page or Markdown file goes into the message**: drag a .md or .html file onto a
   message you're writing and it appears in the text, formatted as it looks (as Include › Web Page

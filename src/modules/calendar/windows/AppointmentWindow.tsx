@@ -282,9 +282,40 @@ export default function AppointmentWindow() {
     setNotesInfo({ text: `Table${r.count === 1 ? "" : "s"} converted to ${what}.`, notes: r.text, before });
     setEditingNotes(false);
   };
-  const editNotes = () => {
+  /** Edit the notes, the cursor at `at` (characters in) when given. */
+  const notesCaret = useRef<number | null | undefined>(undefined);
+  const editNotes = (at?: number) => {
+    notesCaret.current = at ?? null;
     setEditingNotes(true);
-    setTimeout(() => notesRef.current?.focus(), 0);
+  };
+  // once the box is there: the focus in it, at the place clicked
+  useEffect(() => {
+    const t = notesRef.current;
+    if (!editingNotes || !t || notesCaret.current === undefined) return;
+    const at = notesCaret.current;
+    notesCaret.current = undefined;
+    t.focus();
+    if (at !== null) t.setSelectionRange(at, at);
+  }, [editingNotes]);
+  // the notes shown with their links: a click edits them (where clicked), but selecting text —
+  // dragging, or a double / triple click — leaves them shown so it can be copied
+  const notesClick = useRef<number | undefined>(undefined);
+  const onNotesClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    window.clearTimeout(notesClick.current);
+    if (e.detail > 1 || window.getSelection()?.toString()) return;
+    const view = e.currentTarget;
+    // characters before the click: the same as in the notes when they're just text (not tables)
+    const r = document.caretRangeFromPoint?.(e.clientX, e.clientY);
+    let at: number | undefined;
+    if (r && view.contains(r.startContainer) && !notesTables) {
+      const before = document.createRange();
+      before.setStart(view, 0);
+      before.setEnd(r.startContainer, r.startOffset);
+      at = before.toString().length;
+    }
+    notesClick.current = window.setTimeout(() => {
+      if (!window.getSelection()?.toString()) editNotes(at);
+    }, 250);
   };
 
   // keep the duration when the start moves (Outlook behaviour)
@@ -1037,7 +1068,7 @@ export default function AppointmentWindow() {
         <div
           className={`cm-cal-notes cm-cal-notes-view${readOnly ? "" : " editable"}`}
           title={readOnly ? undefined : "Click to edit the notes"}
-          onClick={readOnly ? undefined : editNotes}
+          onClick={readOnly ? undefined : onNotesClick}
         >
           {notesView.map((part, i) =>
             part.kind === "text" ? (

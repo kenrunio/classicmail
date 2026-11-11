@@ -38,9 +38,13 @@ export function Linkified({ text }: { text: string }) {
             href={p.url}
             className="cm-cal-link"
             title={`Open ${p.url}`}
+            // selecting across a link selects its text, rather than dragging the link away
+            draggable={false}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
+              // the end of a selection made across it isn't a click on it
+              if (window.getSelection()?.toString()) return;
               openLink(p.url!);
             }}
           >
