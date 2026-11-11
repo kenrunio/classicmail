@@ -3,7 +3,7 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
-## Unreleased
+## 1.24.10 — 2026-11-11
 - **Meeting notes can be selected and copied**: the notes (and the video-call details) shown with
   their links can now be selected with the mouse — across a link too — and copied, without the
   notes first switching to editing. A plain click still edits them, with the cursor where you
