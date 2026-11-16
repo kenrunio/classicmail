@@ -2,7 +2,8 @@
 // Params: { id, scope?: "occurrence"|"series" } to open an item, or { start, end, allDay?, meeting?, summary? } for a new one.
 // Recurrence: opens the `recurrence` window with a request id and listens for its answer on the
 // Tauri event "cm-recurrence-result" ({ req, action: "ok"|"remove"|"cancel", recurrence, start, end, allDay }).
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { listen } from "@tauri-apps/api/event";
 import { cal, type BusyStatus, type CalendarInfo, type CalEvent, type EventDetail, type EventInput, type Scope } from "../../../api/calendar";
@@ -18,7 +19,8 @@ import "../../mail/compose/compose.css";
 import { useUsualGroup } from "../../mail/compose/usualGroup";
 import { fmtLongDate, fmtReminder, fmtTime, minutesOf, nextSlot, parseDayKey, plusDays, REMINDER_CHOICES, sameLengthEnd, dayKey, MIN } from "../dates";
 import { describeRecurrence } from "../recurrence";
-import { CalDialogHost } from "../dialogs";
+import { CalDialogHost, radioBox } from "../dialogs";
+import { meetingChanges, tellChoices, type Tell } from "../meetingChanges";
 import { askScope, deleteItem, mailAboutItem, proposeNewTime, quickPrint, respondTo, SHOW_AS } from "../actions";
 import { useCalSettings } from "../state";
 import { categorizeMenu, categoryColor, ColorCategoriesHost, useCategories } from "../categories";
@@ -282,41 +284,77 @@ export default function AppointmentWindow() {
     setNotesInfo({ text: `Table${r.count === 1 ? "" : "s"} converted to ${what}.`, notes: r.text, before });
     setEditingNotes(false);
   };
-  /** Edit the notes, the cursor at `at` (characters in) when given. */
-  const notesCaret = useRef<number | null | undefined>(undefined);
-  const editNotes = (at?: number) => {
-    notesCaret.current = at ?? null;
-    setEditingNotes(true);
+  // The notes shown with their links (or tables) act as the text box they turn into: a click edits
+  // them where clicked; typing, Enter, Backspace / Delete, Ctrl+V and Ctrl+X edit them with the
+  // selection kept (the box replaces the view during that same key press, so the key's own action
+  // happens in it); a right-click gives the text box's menu (Cut / Copy / Paste). Selecting text —
+  // a drag, a double / triple click — leaves them shown, to be copied.
+  const viewRef = useRef<HTMLDivElement>(null);
+  const notesScroll = useRef(0);
+  /** characters of the notes before this point of the view — the same as in the text box when the
+   *  notes are just text (a textarea counts a line break as one character, as the view does) */
+  const viewOffset = (node: Node, offset: number): number | undefined => {
+    const view = viewRef.current;
+    if (!view || notesTables || !view.contains(node)) return undefined;
+    const r = document.createRange();
+    r.setStart(view, 0);
+    r.setEnd(node, offset);
+    return r.toString().length;
   };
-  // once the box is there: the focus in it, at the place clicked
-  useEffect(() => {
+  const viewSelection = (): [number, number] | undefined => {
+    const s = window.getSelection();
+    if (!s?.rangeCount) return undefined;
+    const r = s.getRangeAt(0);
+    const a = viewOffset(r.startContainer, r.startOffset);
+    const b = viewOffset(r.endContainer, r.endOffset);
+    return a === undefined || b === undefined ? undefined : [a, b];
+  };
+  const pointOffset = (x: number, y: number): [number, number] | undefined => {
+    const r = document.caretRangeFromPoint?.(x, y);
+    const at = r ? viewOffset(r.startContainer, r.startOffset) : undefined;
+    return at === undefined ? undefined : [at, at];
+  };
+  /** Edit the notes now, with this selection (default: the cursor at the end), scrolled as shown. */
+  const editNotes = (sel?: [number, number]) => {
+    if (readOnly) return;
+    notesScroll.current = viewRef.current?.scrollTop ?? 0;
+    flushSync(() => setEditingNotes(true));
     const t = notesRef.current;
-    if (!editingNotes || !t || notesCaret.current === undefined) return;
-    const at = notesCaret.current;
-    notesCaret.current = undefined;
-    t.focus();
-    if (at !== null) t.setSelectionRange(at, at);
-  }, [editingNotes]);
-  // the notes shown with their links: a click edits them (where clicked), but selecting text —
-  // dragging, or a double / triple click — leaves them shown so it can be copied
-  const notesClick = useRef<number | undefined>(undefined);
-  const onNotesClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    window.clearTimeout(notesClick.current);
-    if (e.detail > 1 || window.getSelection()?.toString()) return;
-    const view = e.currentTarget;
-    // characters before the click: the same as in the notes when they're just text (not tables)
-    const r = document.caretRangeFromPoint?.(e.clientX, e.clientY);
-    let at: number | undefined;
-    if (r && view.contains(r.startContainer) && !notesTables) {
-      const before = document.createRange();
-      before.setStart(view, 0);
-      before.setEnd(r.startContainer, r.startOffset);
-      at = before.toString().length;
-    }
-    notesClick.current = window.setTimeout(() => {
-      if (!window.getSelection()?.toString()) editNotes(at);
-    }, 250);
+    if (!t) return;
+    t.scrollTop = notesScroll.current;
+    t.focus({ preventScroll: true });
+    const [a, b] = sel ?? [t.value.length, t.value.length];
+    t.setSelectionRange(a, b);
   };
+  const onNotesClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.detail > 1 || window.getSelection()?.toString()) return;
+    editNotes(pointOffset(e.clientX, e.clientY));
+  };
+  const onNotesKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const k = e.key.toLowerCase();
+    const edit =
+      e.ctrlKey || e.metaKey
+        ? (k === "v" || k === "x") && !e.altKey && !e.shiftKey
+        : !e.altKey && (e.key.length === 1 || e.key === "Enter" || e.key === "Backspace" || e.key === "Delete");
+    if (edit) editNotes(viewSelection());
+  };
+  const onNotesMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 2) return;
+    // the press's own focus step would take the focus off the new text box again
+    e.preventDefault();
+    editNotes(window.getSelection()?.toString() ? viewSelection() : pointOffset(e.clientX, e.clientY));
+  };
+  /** Leaving the text box for another field shows the notes with their links again; switching to
+   *  another window (to copy something to paste here) keeps it, the cursor where it was. */
+  const onNotesBlur = (e: React.FocusEvent<HTMLTextAreaElement>) => {
+    notesScroll.current = e.currentTarget.scrollTop;
+    window.setTimeout(() => {
+      if (document.hasFocus() && document.activeElement !== notesRef.current) setEditingNotes(false);
+    }, 0);
+  };
+  useLayoutEffect(() => {
+    if (!editingNotes && viewRef.current) viewRef.current.scrollTop = notesScroll.current;
+  }, [editingNotes]);
 
   // keep the duration when the start moves (Outlook behaviour)
   const setStart = (date: string, min: number) => {
@@ -430,6 +468,20 @@ export default function AppointmentWindow() {
     return true;
   };
 
+  /** Saving a sent meeting you organise without Send Update (Save, Save & Close): who hears about
+   *  what changed — asked as Outlook does when the attendees would see it (notes, subject, time,
+   *  place, people). null = don't save. */
+  const askWhoToTell = async (): Promise<Tell | null> => {
+    if (isNew || !detail || !sentMeeting || !organizer || readOnly || !form || !init0) return "none";
+    const c = meetingChanges(init0, { ...form, attendees: attendeeList() });
+    const choices = tellChoices(c);
+    if (!choices.length) return "none";
+    const text = c.content
+      ? "Would you like to send an update to attendees regarding changes to your meeting?"
+      : "You've added or removed attendees. Would you like to send them an update?";
+    return (await radioBox("Send Update to Attendees", text, choices, choices[0].value)) as Tell | null;
+  };
+
   const save = async (send: boolean, close = true): Promise<boolean> => {
     if (!form || busy) return false;
     if (readOnly) {
@@ -455,9 +507,13 @@ export default function AppointmentWindow() {
       return true;
     }
     if (!(await validate())) return false;
+    // Send Update tells everyone, or — when only people were added or removed — just them
+    const tell = send ? "all" : await askWhoToTell();
+    if (tell === null) return false;
     setBusy(true);
     try {
-      const input = buildInput(send);
+      const input = buildInput(tell === "all");
+      if (tell === "changes") input.notifyChanges = true;
       if (isNew) {
         const d = await cal.create(input, `New ${meeting ? "Meeting" : "Appointment"} "${form.summary || "Untitled"}"`);
         if (!close) {
@@ -1066,9 +1122,12 @@ export default function AppointmentWindow() {
       {detail?.conference && <ConferenceBox text={detail.conference} full={readOnly && !form.description.trim()} />}
       {detail?.conference && readOnly && !form.description.trim() ? null : notesView && !editingNotes ? (
         <div
+          ref={viewRef}
           className={`cm-cal-notes cm-cal-notes-view${readOnly ? "" : " editable"}`}
-          title={readOnly ? undefined : "Click to edit the notes"}
+          tabIndex={readOnly ? undefined : 0}
           onClick={readOnly ? undefined : onNotesClick}
+          onKeyDown={readOnly ? undefined : onNotesKeyDown}
+          onMouseDown={readOnly ? undefined : onNotesMouseDown}
         >
           {notesView.map((part, i) =>
             part.kind === "text" ? (
@@ -1108,7 +1167,7 @@ export default function AppointmentWindow() {
           value={form.description}
           readOnly={readOnly}
           onChange={(e) => set({ description: e.target.value })}
-          onBlur={() => setEditingNotes(false)}
+          onBlur={onNotesBlur}
           spellCheck
         />
       )}

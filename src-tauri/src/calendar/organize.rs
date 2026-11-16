@@ -483,6 +483,7 @@ pub async fn move_to_calendar(ctx: Arc<AppCtx>, p: MoveParams) -> anyhow::Result
                 send_updates: Some(false),
                 categories: Some(src.categories.clone()),
                 time_zone: src.time_zone.clone(),
+                ..Default::default()
             };
             let d = super::create_event(ctx.clone(), input).await?;
             delete_event(ctx.clone(), DeleteParams { id: src.id, scope: Some("occurrence".into()), send_updates: Some(false) }).await?;

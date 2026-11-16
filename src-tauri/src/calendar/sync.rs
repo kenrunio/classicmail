@@ -76,6 +76,25 @@ pub struct InviteOp {
     pub emails: Vec<String>,
 }
 
+/// Someone taken off a meeting, as they were on it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Person {
+    pub email: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub optional: Option<bool>,
+}
+
+/// The cancellation e-mailed to people taken off a meeting (its patch went without updates).
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CancelOp {
+    pub event_id: i64,
+    pub people: Vec<Person>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MoveOp {
@@ -253,6 +272,15 @@ async fn push_one(ctx: &Arc<AppCtx>, api: &Api, op: PendingOp) -> anyhow::Result
             if let Some(e) = r.error {
                 // not retried: the ones before it already have theirs
                 log::warn!("inviting the people added to event {} stopped: {e}", p.event_id);
+            }
+            Ok(())
+        }
+        "cancel" => {
+            // after its patch, so Google no longer has them on the guest list
+            let p: CancelOp = op.payload()?;
+            let r = super::invite::send_cancels(ctx.clone(), p.event_id, &p.people).await?;
+            if let Some(e) = r.error {
+                log::warn!("telling the people taken off event {} stopped: {e}", p.event_id);
             }
             Ok(())
         }

@@ -491,6 +491,118 @@ async fn adding_someone_invites_just_them() {
     assert_eq!(invitations().await.len(), n0 + 1);
 }
 
+/// Someone taken off a sent meeting: only they get a cancellation (Google would mail every guest
+/// an update); saved without sending but "only added or removed": the same, nobody else hears.
+#[tokio::test]
+async fn removing_someone_cancels_just_them() {
+    let (ctx, _g, a) = setup().await;
+    sync(&ctx, a).await;
+    let start = now() + 5 * 24 * HOUR;
+    let sarah = json!({ "email": "sarah.cohen@harborcap.example", "name": "Sarah Cohen" });
+    let noa = json!({ "email": "noa@oriontech.example", "name": "Noa Shapiro" });
+    let dana = json!({ "email": "dana@orbit.example", "name": "Dana Levi" });
+    let d = call(
+        &ctx,
+        "calendar.createEvent",
+        json!({ "summary": "Q4 strategy", "start": start, "end": start + HOUR, "attendees": [sarah, noa], "sendUpdates": true }),
+    )
+    .await;
+    sync(&ctx, a).await;
+    let api = ctx.api(a).await.unwrap();
+    let mails = |q: &'static str| {
+        let api = api.clone();
+        async move { api.gmail_list(Some(q), &["SENT"], None, 50, false).await.unwrap().messages }
+    };
+    let last_patch = || async {
+        ctx.db
+            .read(|c| {
+                Ok(c.query_row("SELECT payload FROM pending_ops WHERE kind='patch' ORDER BY id DESC LIMIT 1", [], |r| {
+                    r.get::<_, String>(0)
+                })
+                .unwrap_or_default())
+            })
+            .await
+            .unwrap()
+    };
+    let raw_of = |id: String| {
+        let api = api.clone();
+        async move {
+            let m = api.gmail_get(&id, "raw", &[]).await.unwrap();
+            let raw =
+                base64::Engine::decode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, m.raw.unwrap_or_default().trim_end_matches('='))
+                    .unwrap();
+            String::from_utf8_lossy(&raw).replace("\r\n ", "")
+        }
+    };
+    let (c0, i0) = (mails("subject:Canceled").await.len(), mails("subject:Invitation").await.len());
+
+    // Send Update with Noa taken off: a quiet patch, one cancellation, to Noa
+    call(&ctx, "calendar.updateEvent", json!({ "id": d["id"], "attendees": [sarah], "sendUpdates": true })).await;
+    let patch = last_patch().await;
+    assert!(patch.is_empty() || patch.contains("\"none\""), "the patch itself mails nobody: {patch}");
+    sync(&ctx, a).await;
+    let sent = mails("subject:Canceled").await;
+    assert_eq!(sent.len(), c0 + 1, "one cancellation");
+    let text = raw_of(sent[0].id.clone()).await;
+    assert!(text.contains("To: \"Noa Shapiro\"") || text.contains("To: Noa Shapiro"), "to Noa: {}", &text[..400.min(text.len())]);
+    assert!(text.contains("METHOD:CANCEL") && text.contains("STATUS:CANCELLED") && text.contains("mailto:noa@oriontech.example"));
+    assert!(!text.contains("mailto:sarah.cohen@harborcap.example"), "the cancellation names only Noa");
+    let after = call(&ctx, "calendar.getEvent", json!({ "id": d["id"] })).await;
+    assert!(!after["attendees"].as_array().unwrap().iter().any(|x| x["email"] == "noa@oriontech.example"));
+
+    // the notes changed, Dana added and Sarah taken off, saved with "only added or removed":
+    // Dana's invitation and Sarah's cancellation, no update from Google
+    call(
+        &ctx,
+        "calendar.updateEvent",
+        json!({ "id": d["id"], "description": "Agenda: budget", "attendees": [dana], "sendUpdates": false, "notifyChanges": true }),
+    )
+    .await;
+    assert!(last_patch().await.contains("\"none\""));
+    sync(&ctx, a).await;
+    assert_eq!(mails("subject:Canceled").await.len(), c0 + 2);
+    assert_eq!(mails("subject:Invitation").await.len(), i0 + 1);
+
+    // saved without sending: nobody hears
+    call(
+        &ctx,
+        "calendar.updateEvent",
+        json!({ "id": d["id"], "description": "Agenda: budget, hiring", "attendees": [dana, noa], "sendUpdates": false }),
+    )
+    .await;
+    sync(&ctx, a).await;
+    assert_eq!(mails("subject:Canceled").await.len(), c0 + 2);
+    assert_eq!(mails("subject:Invitation").await.len(), i0 + 1);
+}
+
+#[test]
+fn a_cancellation_for_one_occurrence_names_it() {
+    use crate::google::calendar::{Event, EventDateTime};
+    let ev = Event {
+        ical_uid: Some("abc123@google.com".into()),
+        summary: Some("Weekly call".into()),
+        start: Some(EventDateTime { date_time: Some("2026-11-24T17:00:00+02:00".into()), time_zone: None, date: None }),
+        end: Some(EventDateTime { date_time: Some("2026-11-24T17:30:00+02:00".into()), time_zone: None, date: None }),
+        recurring_event_id: Some("abc123".into()),
+        original_start_time: Some(EventDateTime { date_time: Some("2026-11-24T17:00:00+02:00".into()), time_zone: None, date: None }),
+        sequence: Some(2),
+        ..Default::default()
+    };
+    let who = super::sync::Person { email: "noa@oriontech.example".into(), name: Some("Shapiro, Noa".into()), optional: None };
+    let now = chrono::TimeZone::with_ymd_and_hms(&chrono::Utc, 2026, 11, 1, 12, 0, 0).unwrap();
+    let ics = super::invite::cancel_ics(&ev, ("kenny@duvz.demo", "Kenny Green"), now, &[who]).unwrap().replace("\r\n ", "");
+    for want in [
+        "METHOD:CANCEL",
+        "RECURRENCE-ID:20261124T150000Z",
+        "UID:abc123@google.com",
+        "SEQUENCE:2",
+        "STATUS:CANCELLED",
+        "CN=\"Shapiro, Noa\":mailto:noa@oriontech.example",
+    ] {
+        assert!(ics.contains(want), "missing {want}:\n{ics}");
+    }
+}
+
 #[tokio::test]
 async fn task_reminders_are_included_and_dismissable() {
     let (ctx, _g, a) = setup().await;

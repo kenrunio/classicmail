@@ -110,6 +110,9 @@ export interface EventInput {
   /** RRULE lines; [] removes recurrence */
   recurrence?: string[];
   sendUpdates?: boolean;
+  /** with sendUpdates false: still invite the people added and send the people removed a
+   *  cancellation ("send updates only to added or removed attendees") */
+  notifyChanges?: boolean;
   categories?: string[];
   /** the time zone start / end were set in (IANA); default the calendar's */
   timeZone?: string;

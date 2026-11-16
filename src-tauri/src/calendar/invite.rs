@@ -5,6 +5,9 @@
 //!
 //! rpc: `calendar.resendInvite { id, emails }` → `{ sent, error }`: the addresses it went to, and
 //! why it stopped if a send failed (the ones before it did go).
+//!
+//! The same way, people added to a sent meeting get its invitation, and people taken off it a
+//! cancellation (METHOD:CANCEL), without Google mailing everyone else an update (sync.rs ops).
 
 use std::sync::Arc;
 
@@ -15,8 +18,10 @@ use mail_builder::{
     headers::{content_type::ContentType, message_id::MessageId},
     mime::MimePart,
 };
+use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 
+use super::sync::Person;
 use crate::{
     ctx::AppCtx,
     google::calendar::{self as gcal, Event, EventDateTime},
@@ -130,6 +135,16 @@ fn description(ev: &Event) -> String {
 
 /// The VCALENDAR (METHOD:REQUEST) for a Google event.
 pub fn request_ics(ev: &Event, organizer: (&str, &str), now: DateTime<Utc>) -> anyhow::Result<String> {
+    meeting_ics(ev, organizer, now, None)
+}
+
+/// The VCALENDAR (METHOD:CANCEL) telling these people they're no longer on the meeting (one
+/// occurrence of a series when `ev` is that occurrence: its RECURRENCE-ID).
+pub fn cancel_ics(ev: &Event, organizer: (&str, &str), now: DateTime<Utc>, people: &[Person]) -> anyhow::Result<String> {
+    meeting_ics(ev, organizer, now, Some(people))
+}
+
+fn meeting_ics(ev: &Event, organizer: (&str, &str), now: DateTime<Utc>, cancel: Option<&[Person]>) -> anyhow::Result<String> {
     let uid = ev.ical_uid.clone().filter(|u| !u.is_empty()).ok_or_else(|| anyhow::anyhow!("the meeting has no iCalUID"))?;
     let (start, end) = (ev.start.as_ref(), ev.end.as_ref());
     let mut lines = vec![
@@ -137,7 +152,7 @@ pub fn request_ics(ev: &Event, organizer: (&str, &str), now: DateTime<Utc>) -> a
         "PRODID:-//Duvz Software//ClassicMail//EN".into(),
         "VERSION:2.0".into(),
         "CALSCALE:GREGORIAN".into(),
-        "METHOD:REQUEST".into(),
+        format!("METHOD:{}", if cancel.is_some() { "CANCEL" } else { "REQUEST" }),
     ];
     let recurring = ev.recurrence.as_ref().is_some_and(|r| !r.is_empty());
     let zone: Option<Tz> = start.and_then(|s| s.time_zone.as_deref()).and_then(|z| z.parse().ok()).filter(|_| recurring);
@@ -163,19 +178,36 @@ pub fn request_ics(ev: &Event, organizer: (&str, &str), now: DateTime<Utc>) -> a
     lines.push(when(start, "DTSTART")?);
     lines.push(when(end, "DTEND")?);
     lines.extend(ev.recurrence.clone().unwrap_or_default());
+    // one occurrence of a series (Google's instance): which one
+    if ev.recurring_event_id.is_some()
+        && let Some(o) = ev.original_start_time.as_ref()
+    {
+        lines.push(when(Some(o), "RECURRENCE-ID")?);
+    }
     lines.push(format!("DTSTAMP:{}", utc(now)));
     lines.push(format!("ORGANIZER;CN={}:mailto:{}", param(organizer.1), organizer.0));
     lines.push(format!("UID:{uid}"));
-    for a in ev.attendees.iter().flatten().filter(|a| a.resource != Some(true)) {
-        let role = if a.optional == Some(true) { "OPT-PARTICIPANT" } else { "REQ-PARTICIPANT" };
-        let part = match a.response_status.as_str() {
-            "accepted" => "ACCEPTED",
-            "declined" => "DECLINED",
-            "tentative" => "TENTATIVE",
-            _ => "NEEDS-ACTION",
-        };
-        let cn = a.display_name.as_deref().filter(|n| !n.is_empty()).unwrap_or(&a.email);
-        lines.push(format!("ATTENDEE;CUTYPE=INDIVIDUAL;ROLE={role};PARTSTAT={part};RSVP=TRUE;CN={}:mailto:{}", param(cn), a.email));
+    match cancel {
+        Some(people) => {
+            for p in people {
+                let role = if p.optional == Some(true) { "OPT-PARTICIPANT" } else { "REQ-PARTICIPANT" };
+                let cn = p.name.as_deref().filter(|n| !n.is_empty()).unwrap_or(&p.email);
+                lines.push(format!("ATTENDEE;CUTYPE=INDIVIDUAL;ROLE={role};PARTSTAT=NEEDS-ACTION;CN={}:mailto:{}", param(cn), p.email));
+            }
+        }
+        None => {
+            for a in ev.attendees.iter().flatten().filter(|a| a.resource != Some(true)) {
+                let role = if a.optional == Some(true) { "OPT-PARTICIPANT" } else { "REQ-PARTICIPANT" };
+                let part = match a.response_status.as_str() {
+                    "accepted" => "ACCEPTED",
+                    "declined" => "DECLINED",
+                    "tentative" => "TENTATIVE",
+                    _ => "NEEDS-ACTION",
+                };
+                let cn = a.display_name.as_deref().filter(|n| !n.is_empty()).unwrap_or(&a.email);
+                lines.push(format!("ATTENDEE;CUTYPE=INDIVIDUAL;ROLE={role};PARTSTAT={part};RSVP=TRUE;CN={}:mailto:{}", param(cn), a.email));
+            }
+        }
     }
     lines.push(format!("SEQUENCE:{}", ev.sequence.unwrap_or(0)));
     lines.push(format!("SUMMARY:{}", esc(ev.summary.as_deref().unwrap_or(""))));
@@ -183,11 +215,87 @@ pub fn request_ics(ev: &Event, organizer: (&str, &str), now: DateTime<Utc>) -> a
         lines.push(format!("LOCATION:{}", esc(l)));
     }
     let d = description(ev);
-    if !d.is_empty() {
+    if !d.is_empty() && cancel.is_none() {
         lines.push(format!("DESCRIPTION:{}", esc(&d)));
     }
-    lines.extend(["STATUS:CONFIRMED".into(), "TRANSP:OPAQUE".into(), "END:VEVENT".into(), "END:VCALENDAR".into()]);
+    let status = if cancel.is_some() { "STATUS:CANCELLED" } else { "STATUS:CONFIRMED" };
+    lines.extend([status.into(), "TRANSP:OPAQUE".into(), "END:VEVENT".into(), "END:VCALENDAR".into()]);
     Ok(lines.iter().map(|l| if l.starts_with("BEGIN:VTIMEZONE") { l.clone() } else { fold(l) }).collect::<Vec<_>>().join("\r\n") + "\r\n")
+}
+
+/// When the meeting is, for a person to read ("Tuesday, 24 November 2026 17:00 - 17:30
+/// (Asia/Jerusalem)", or how a series recurs: see `invite_message`).
+fn when_text(ev: &Event, tz: Tz, series: Option<&str>) -> String {
+    let recurring = ev.recurrence.as_ref().is_some_and(|r| !r.is_empty());
+    match (
+        series.map(str::trim).filter(|t| recurring && !t.is_empty()),
+        ev.start.as_ref().and_then(instant),
+        ev.end.as_ref().and_then(instant),
+    ) {
+        (Some(t), _, _) => format!("{} ({})", t.trim_end_matches('.'), tz.name()),
+        (None, Some(s), Some(e)) => {
+            let (s, e) = (s.with_timezone(&tz), e.with_timezone(&tz));
+            format!("{} - {} ({})", s.format("%A, %-d %B %Y %H:%M"), e.format("%H:%M"), tz.name())
+        }
+        _ => ev.start.as_ref().and_then(|s| s.date.clone()).unwrap_or_default(),
+    }
+}
+
+/// The e-mail around a calendar request: the text / HTML summary, the request itself (the
+/// text/calendar part mail programs show as an invitation) and the same as an .ics attachment.
+fn calendar_message(
+    organizer: (&str, &str),
+    to: (&str, &str),
+    subject: String,
+    text: String,
+    html: String,
+    ics: String,
+    method: &str,
+) -> anyhow::Result<Vec<u8>> {
+    let file = if method == "CANCEL" { "cancel.ics" } else { "invite.ics" };
+    let calendar = || ContentType::new("text/calendar").attribute("method", method).attribute("charset", "utf-8");
+    let body = MimePart::new(
+        "multipart/mixed",
+        vec![
+            MimePart::new(
+                "multipart/alternative",
+                vec![
+                    MimePart::new("text/plain", text.replace('\n', "\r\n")),
+                    MimePart::new("text/html", html),
+                    MimePart::new(calendar(), ics.clone()),
+                ],
+            ),
+            MimePart::new(ContentType::new("application/ics").attribute("name", file), ics).attachment(file),
+        ],
+    );
+    let msg = MessageBuilder::new()
+        .from((organizer.1.to_string(), organizer.0.to_string()))
+        .to((to.1.to_string(), to.0.to_string()))
+        .subject(subject)
+        .message_id(MessageId::new(crate::mail::compose::mime::new_message_id(organizer.0)))
+        .body(body);
+    Ok(msg.write_to_vec()?)
+}
+
+/// The cancellation e-mail to someone taken off the meeting.
+pub fn cancel_message(ev: &Event, organizer: (&str, &str), to: &Person, tz: Tz, now: DateTime<Utc>) -> anyhow::Result<Vec<u8>> {
+    let ics = cancel_ics(ev, organizer, now, std::slice::from_ref(to))?;
+    let summary = ev.summary.clone().unwrap_or_default();
+    let when = when_text(ev, tz, None);
+    let place = ev.location.clone().unwrap_or_default();
+    let mut text = format!("{} has removed you from the following meeting.\n\n{summary}\nWhen: {when}\n", organizer.1);
+    if !place.is_empty() {
+        text.push_str(&format!("Where: {place}\n"));
+    }
+    let html = format!(
+        "<div style=\"font-family:Calibri,sans-serif;font-size:11pt\"><p>{} has removed you from the following meeting.</p><p><b>{}</b><br>When: {}{}</p></div>",
+        escape_html(organizer.1),
+        escape_html(&summary),
+        escape_html(&when),
+        if place.is_empty() { String::new() } else { format!("<br>Where: {}", escape_html(&place)) },
+    );
+    let name = to.name.clone().unwrap_or_default();
+    calendar_message(organizer, (&to.email, &name), format!("Canceled: {summary} @ {when}"), text, html, ics, "CANCEL")
 }
 
 /// The invitation e-mail to one attendee: a short text / HTML summary, and the request itself
@@ -204,19 +312,7 @@ pub fn invite_message(
 ) -> anyhow::Result<Vec<u8>> {
     let ics = request_ics(ev, organizer, now)?;
     let summary = ev.summary.clone().unwrap_or_default();
-    let recurring = ev.recurrence.as_ref().is_some_and(|r| !r.is_empty());
-    let when = match (
-        series.map(str::trim).filter(|t| recurring && !t.is_empty()),
-        ev.start.as_ref().and_then(instant),
-        ev.end.as_ref().and_then(instant),
-    ) {
-        (Some(t), _, _) => format!("{} ({})", t.trim_end_matches('.'), tz.name()),
-        (None, Some(s), Some(e)) => {
-            let (s, e) = (s.with_timezone(&tz), e.with_timezone(&tz));
-            format!("{} - {} ({})", s.format("%A, %-d %B %Y %H:%M"), e.format("%H:%M"), tz.name())
-        }
-        _ => ev.start.as_ref().and_then(|s| s.date.clone()).unwrap_or_default(),
-    };
+    let when = when_text(ev, tz, series);
     let place = ev.location.clone().unwrap_or_default();
     let notes = description(ev);
     let mut text = format!("{} has invited you to the following meeting.\n\n{summary}\nWhen: {when}\n", organizer.1);
@@ -235,30 +331,9 @@ pub fn invite_message(
         if place.is_empty() { String::new() } else { format!("<br>Where: {}", escape_html(&place)) },
         if notes.is_empty() { String::new() } else { format!("<p>{}</p>", escape_html(&notes).replace('\n', "<br>")) },
     );
-    let calendar = || ContentType::new("text/calendar").attribute("method", "REQUEST").attribute("charset", "utf-8");
-    let body = MimePart::new(
-        "multipart/mixed",
-        vec![
-            MimePart::new(
-                "multipart/alternative",
-                vec![
-                    MimePart::new("text/plain", text.replace('\n', "\r\n")),
-                    MimePart::new("text/html", html),
-                    MimePart::new(calendar(), ics.clone()),
-                ],
-            ),
-            MimePart::new(ContentType::new("application/ics").attribute("name", "invite.ics"), ics).attachment("invite.ics"),
-        ],
-    );
     // "Invitation: Weekly call @ every Tuesday effective 5/3/2024 from 17:00 to 17:30 (Asia/Jerusalem)"
     let subject = format!("Invitation: {summary} @ {}", when.strip_prefix("Occurs ").unwrap_or(&when));
-    let msg = MessageBuilder::new()
-        .from((organizer.1.to_string(), organizer.0.to_string()))
-        .to((to.1.to_string(), to.0.to_string()))
-        .subject(subject)
-        .message_id(MessageId::new(crate::mail::compose::mime::new_message_id(organizer.0)))
-        .body(body);
-    Ok(msg.write_to_vec()?)
+    calendar_message(organizer, to, subject, text, html, ics, "REQUEST")
 }
 
 #[derive(Deserialize)]
@@ -322,6 +397,47 @@ pub(crate) async fn send_invites(ctx: Arc<AppCtx>, id: i64, emails: &[String], s
         sent.push(email.clone());
     }
     log::info!("sent the invitation of event {} to {} attendee(s)", id, sent.len());
+    Ok(Resent { sent, error: None })
+}
+
+/// The cancellation to people taken off a meeting (the meeting as Google now has it: an
+/// occurrence edited on its own is cancelled for them as that one occurrence).
+pub(crate) async fn send_cancels(ctx: Arc<AppCtx>, id: i64, people: &[Person]) -> anyhow::Result<Resent> {
+    let found = ctx
+        .db
+        .read(move |c| {
+            let Some(row) = c.query_row("SELECT * FROM events WHERE id=?1", [id], super::model::EventRow::from_row).optional()? else {
+                return Ok(None);
+            };
+            let cal = super::model::get_cal(c, row.calendar_id)?;
+            let me = super::account_identity(c, row.account_id)?;
+            Ok(Some((row, cal, me)))
+        })
+        .await?;
+    // deleted meanwhile: its deletion tells everyone
+    let Some((row, cal, me)) = found else { return Ok(Resent { sent: vec![], error: None }) };
+    let Some(gid) = row.gcal_id.clone().filter(|_| row.organizer_self) else { return Ok(Resent { sent: vec![], error: None }) };
+    let api = ctx.api(row.account_id).await?;
+    let ev = gcal::get_event(&api, &cal.gcal_id, &gid).await?;
+    let organizer = ev.organizer.as_ref().and_then(|o| o.email.clone()).unwrap_or(me.0.clone());
+    let now = crate::clock::now();
+    let mut sent = vec![];
+    for p in people {
+        // put back on the meeting since: nothing to cancel
+        if ev.attendees.iter().flatten().any(|a| a.email.eq_ignore_ascii_case(&p.email)) {
+            continue;
+        }
+        let raw = cancel_message(&ev, (&organizer, &me.1), p, cal.tz(), now)?;
+        if let Err(e) = api.gmail_send(&raw, None).await {
+            if sent.is_empty() {
+                return Err(e);
+            }
+            log::warn!("sending the cancellation of event {} stopped after {} person(s): {}", id, sent.len(), crate::logging::err(&e));
+            return Ok(Resent { sent, error: Some(e.to_string()) });
+        }
+        sent.push(p.email.clone());
+    }
+    log::info!("sent the cancellation of event {} to {} person(s)", id, sent.len());
     Ok(Resent { sent, error: None })
 }
 

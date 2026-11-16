@@ -417,6 +417,9 @@ pub struct EventInput {
     pub recurrence: Option<Vec<String>>,
     /// send invitations / updates to attendees
     pub send_updates: Option<bool>,
+    /// with `send_updates` false: still invite the people added and send a cancellation to the
+    /// people removed (Outlook's "send updates only to added or deleted attendees")
+    pub notify_changes: Option<bool>,
     /// colour categories (names); also sets the Google colour
     pub categories: Option<Vec<String>>,
     /// the time zone the start and end were set in (IANA, "America/New_York"); default the calendar's
@@ -624,47 +627,66 @@ pub(crate) fn send_mode(send: Option<bool>, row: &EventRow) -> String {
     if send.unwrap_or(true) && row.attendees.iter().any(|a| a.is_self != Some(true)) { "all".into() } else { "none".into() }
 }
 
-/// People added to a meeting whose invitations already went out, when that's all that changed
-/// (same subject, place, notes, times and recurrence; nobody removed). Google would e-mail the
-/// update to every guest, so the patch then goes quietly and only these get the invitation.
-pub(crate) fn only_added(before: &EventRow, after: &EventRow, cal: &CalRow) -> Vec<String> {
-    let others = |r: &EventRow| {
-        r.attendees
-            .iter()
-            .filter(|a| a.is_self != Some(true) && a.organizer != Some(true))
-            .map(|a| a.email.to_lowercase())
-            .collect::<Vec<_>>()
-    };
-    let (old, new) = (others(before), others(after));
-    if old.is_empty() || !before.organizer_self || before.gcal_id.is_none() || old.iter().any(|e| !new.contains(e)) {
-        return vec![];
-    }
+/// The guests of a meeting (not me, not the organizer), lower-cased.
+fn guests(r: &EventRow) -> Vec<String> {
+    r.attendees.iter().filter(|a| a.is_self != Some(true) && a.organizer != Some(true)).map(|a| a.email.to_lowercase()).collect()
+}
+
+/// Whether what the guests see of the meeting is the same (subject, place, notes, times, recurrence).
+pub(crate) fn same_meeting(before: &EventRow, after: &EventRow, cal: &CalRow) -> bool {
     let meeting = |r: &EventRow| {
         let b = r.to_google(cal);
         ["summary", "location", "description", "start", "end", "recurrence"].map(|k| b.get(k).cloned())
     };
-    if meeting(before) != meeting(after) {
-        return vec![];
-    }
-    after.attendees.iter().filter(|a| a.is_self != Some(true) && !old.contains(&a.email.to_lowercase())).map(|a| a.email.clone()).collect()
+    meeting(before) == meeting(after)
 }
 
-/// The patch of an edited row, and (only people added) their invitations after it.
-fn enqueue_patch(tx: &Connection, before: &EventRow, after: &EventRow, cal: &CalRow, send: Option<bool>) -> anyhow::Result<()> {
-    let mut mode = send_mode(send, after);
-    let added = if mode == "all" { only_added(before, after, cal) } else { vec![] };
-    if !added.is_empty() {
-        mode = "none".into();
+/// The people added to a meeting whose invitations already went out (their addresses), and the
+/// people taken off it (as they were on it). Empty when it isn't such a meeting of mine.
+pub(crate) fn guest_changes(before: &EventRow, after: &EventRow) -> (Vec<String>, Vec<Attendee>) {
+    let (old, new) = (guests(before), guests(after));
+    if old.is_empty() || !before.organizer_self || before.gcal_id.is_none() {
+        return (vec![], vec![]);
     }
+    let added = after
+        .attendees
+        .iter()
+        .filter(|a| a.is_self != Some(true) && !old.contains(&a.email.to_lowercase()))
+        .map(|a| a.email.clone())
+        .collect();
+    let removed = before
+        .attendees
+        .iter()
+        .filter(|a| a.is_self != Some(true) && a.organizer != Some(true) && !new.contains(&a.email.to_lowercase()))
+        .cloned()
+        .collect();
+    (added, removed)
+}
+
+/// The patch of an edited meeting, and who hears about it. Google mails an update to every guest
+/// (and a cancellation to anyone taken off), so when only the guest list changed — or when asked
+/// to tell just those people — the patch goes quietly and the people added get the invitation, the
+/// people removed a cancellation, from my mailbox.
+fn enqueue_patch(tx: &Connection, before: &EventRow, after: &EventRow, cal: &CalRow, p: &EventInput) -> anyhow::Result<()> {
+    let send = p.send_updates.unwrap_or(true);
+    let anyone = !guests(before).is_empty() || !guests(after).is_empty();
+    let (added, removed) = guest_changes(before, after);
+    let changed_people = !added.is_empty() || !removed.is_empty();
+    let just_them = changed_people && if send { same_meeting(before, after, cal) } else { p.notify_changes == Some(true) };
+    let mode = if send && anyone && !just_them { "all" } else { "none" };
     pending::enqueue(
         tx,
         after.account_id,
         sync::DOMAIN,
         "patch",
-        &PatchOp { event_id: after.id, what: "all".into(), send_updates: Some(mode) },
+        &PatchOp { event_id: after.id, what: "all".into(), send_updates: Some(mode.into()) },
     )?;
-    if !added.is_empty() {
+    if just_them && !added.is_empty() {
         pending::enqueue(tx, after.account_id, sync::DOMAIN, "invite", &sync::InviteOp { event_id: after.id, emails: added })?;
+    }
+    if just_them && !removed.is_empty() {
+        let people = removed.into_iter().map(|a| sync::Person { email: a.email, name: a.display_name, optional: a.optional }).collect();
+        pending::enqueue(tx, after.account_id, sync::DOMAIN, "cancel", &sync::CancelOp { event_id: after.id, people })?;
     }
     Ok(())
 }
@@ -841,7 +863,7 @@ pub(crate) async fn update_event(ctx: Arc<AppCtx>, p: UpdateParams) -> anyhow::R
                     }
                 }
                 if master.gcal_id.is_some() {
-                    enqueue_patch(&tx, &master0, &master, &cal, p.input.send_updates)?;
+                    enqueue_patch(&tx, &master0, &master, &cal, &p.input)?;
                 }
                 if row.is_master || !reshaped {
                     if row.is_master { master.id } else { row.id }
@@ -877,7 +899,7 @@ pub(crate) async fn update_event(ctx: Arc<AppCtx>, p: UpdateParams) -> anyhow::R
                     make_placeholders(&tx, &r2, &cal)?;
                 }
                 if r2.gcal_id.is_some() {
-                    enqueue_patch(&tx, &row, &r2, &cal, p.input.send_updates)?;
+                    enqueue_patch(&tx, &row, &r2, &cal, &p.input)?;
                 }
                 if r2.is_master {
                     tx.query_row("SELECT id FROM events WHERE parent_local_id=?1 ORDER BY start_ms LIMIT 1", [r2.id], |r| r.get(0))
@@ -921,10 +943,10 @@ pub(crate) async fn copy_event(ctx: Arc<AppCtx>, p: CopyParams) -> anyhow::Resul
             .map(|a| AttendeeIn { email: a.email.clone(), name: a.display_name.clone(), optional: a.optional })
             .collect();
         // someone else's meeting: they're invited to the follow-on too
-        if let Some(org) = src.organizer_email.clone().filter(|e| !src.organizer_self && e.contains('@')) {
-            if !list.iter().any(|a| a.email.eq_ignore_ascii_case(&org)) {
-                list.insert(0, AttendeeIn { email: org, name: src.organizer_name.clone(), optional: None });
-            }
+        if let Some(org) = src.organizer_email.clone().filter(|e| !src.organizer_self && e.contains('@'))
+            && !list.iter().any(|a| a.email.eq_ignore_ascii_case(&org))
+        {
+            list.insert(0, AttendeeIn { email: org, name: src.organizer_name.clone(), optional: None });
         }
         list
     } else {
@@ -950,6 +972,7 @@ pub(crate) async fn copy_event(ctx: Arc<AppCtx>, p: CopyParams) -> anyhow::Resul
         send_updates: Some(invite),
         categories: Some(src.categories.clone()),
         time_zone: src.time_zone.clone(),
+        ..Default::default()
     };
     create_event(ctx, input).await
 }

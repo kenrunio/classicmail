@@ -3,6 +3,21 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
+## Unreleased
+- **Meeting notes edit smoothly**: notes shown with their links act like the text box they are.
+  A click edits them straight away, with the cursor where you clicked. Typing, Enter, Backspace,
+  Delete, Ctrl+V and Ctrl+X edit them too, acting on any text you'd selected. A right-click gives
+  the usual Cut / Copy / Paste menu. Switching to another window (to copy something to paste in)
+  no longer takes the notes out of editing.
+- **Saving a sent meeting asks who to tell**: Save or Save & Close on a meeting you organise, after
+  changing what attendees see (notes, subject, location, time, recurrence, people), asks whether to
+  send the update. It offers to send it to everyone, only to the people added or removed, or to
+  nobody, as Outlook does. Send Update still sends at once.
+- **Taking someone off a meeting tells only them**: when the only change to a sent meeting is the
+  people on it, the people removed get a cancellation, and the people added an invitation, from
+  your mailbox. Everyone else isn't e-mailed an update. Cancelling the whole meeting still tells
+  everyone.
+
 ## 1.24.10 — 2026-11-11
 - **Meeting notes can be selected and copied**: the notes (and the video-call details) shown with
   their links can now be selected with the mouse — across a link too — and copied, without the
