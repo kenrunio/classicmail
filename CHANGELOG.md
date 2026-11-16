@@ -3,7 +3,7 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
-## Unreleased
+## 1.24.11 — 2026-11-16
 - **Meeting notes edit smoothly**: notes shown with their links act like the text box they are.
   A click edits them straight away, with the cursor where you clicked. Typing, Enter, Backspace,
   Delete, Ctrl+V and Ctrl+X edit them too, acting on any text you'd selected. A right-click gives
