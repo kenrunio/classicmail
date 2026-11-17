@@ -3,6 +3,11 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
+## Unreleased
+- **Options › Calendar fits the window**: no more sideways scroll bar. When the window is narrow,
+  a row's second setting (Gap between meetings, Time scale, a time zone's Label) moves to the next
+  line, and the long time zone list shrinks to fit. "Calendar work week" is now "Work week".
+
 ## 1.24.11 — 2026-11-16
 - **Meeting notes edit smoothly**: notes shown with their links act like the text box they are.
   A click edits them straight away, with the cursor where you clicked. Typing, Enter, Backspace,

@@ -75,6 +75,21 @@
 .cm-opt-section .cm-fieldset {
   flex: 1;
   margin: 0;
+  /* a fieldset is otherwise never narrower than its widest row: the page scrolls sideways */
+  min-width: 0;
+}
+/* a row of label + field pairs: a pair that doesn't fit goes to the next line, whole */
+.cm-opt-row.wrap {
+  flex-wrap: wrap;
+  row-gap: 5px;
+  column-gap: 18px;
+}
+.cm-opt-pair {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  min-width: 0;
 }
 .cm-opt-row {
   display: flex;

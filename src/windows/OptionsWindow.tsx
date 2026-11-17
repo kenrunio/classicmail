@@ -222,7 +222,7 @@ function Preferences({ values, set }: Props) {
       </Section>
       <Section icon="calendar" title="Calendar">
         <div className="cm-opt-row">
-          <span>Calendar work week:</span>
+          <span>Work week:</span>
           {DAYS.map((d, i) => (
             <label key={d} style={{ display: "flex", alignItems: "center", gap: 2 }}>
               <input
@@ -250,47 +250,55 @@ function Preferences({ values, set }: Props) {
             onChange={(e) => set("calendar.workDayEnd", timeToMinutes(e.target.value))}
           />
         </div>
-        <div className="cm-opt-row" title="Used when AI Review suggests meeting times from your calendar">
-          <span>Usual meeting length:</span>
-          <input
-            className="cm-input"
-            type="number"
-            min={5}
-            max={600}
-            step={5}
-            style={{ width: 56 }}
-            value={values["calendar.meetingMinutes"]}
-            onChange={(e) => set("calendar.meetingMinutes", Math.max(5, Number(e.target.value) || 45))}
-          />
-          <span>minutes</span>
-          <span style={{ marginLeft: 12 }}>Gap between meetings:</span>
-          <input
-            className="cm-input"
-            type="number"
-            min={0}
-            max={240}
-            step={5}
-            style={{ width: 56 }}
-            value={values["calendar.meetingGapMinutes"]}
-            onChange={(e) => set("calendar.meetingGapMinutes", Math.max(0, Number(e.target.value) || 0))}
-          />
-          <span>minutes</span>
+        <div className="cm-opt-row wrap" title="Used when AI Review suggests meeting times from your calendar">
+          <span className="cm-opt-pair">
+            <span>Usual meeting length:</span>
+            <input
+              className="cm-input"
+              type="number"
+              min={5}
+              max={600}
+              step={5}
+              style={{ width: 56 }}
+              value={values["calendar.meetingMinutes"]}
+              onChange={(e) => set("calendar.meetingMinutes", Math.max(5, Number(e.target.value) || 45))}
+            />
+            <span>minutes</span>
+          </span>
+          <span className="cm-opt-pair">
+            <span>Gap between meetings:</span>
+            <input
+              className="cm-input"
+              type="number"
+              min={0}
+              max={240}
+              step={5}
+              style={{ width: 56 }}
+              value={values["calendar.meetingGapMinutes"]}
+              onChange={(e) => set("calendar.meetingGapMinutes", Math.max(0, Number(e.target.value) || 0))}
+            />
+            <span>minutes</span>
+          </span>
         </div>
-        <div className="cm-opt-row">
-          <span>First day of week:</span>
-          <select className="cm-input" value={values["calendar.weekStartsOn"]} onChange={(e) => set("calendar.weekStartsOn", Number(e.target.value))}>
-            <option value={0}>Sunday</option>
-            <option value={1}>Monday</option>
-            <option value={6}>Saturday</option>
-          </select>
-          <span style={{ marginLeft: 12 }}>Time scale:</span>
-          <select className="cm-input" value={values["calendar.timeScale"]} onChange={(e) => set("calendar.timeScale", Number(e.target.value))}>
-            {[5, 6, 10, 15, 30, 60].map((m) => (
-              <option key={m} value={m}>
-                {m} minutes
-              </option>
-            ))}
-          </select>
+        <div className="cm-opt-row wrap">
+          <span className="cm-opt-pair">
+            <span>First day of week:</span>
+            <select className="cm-input" value={values["calendar.weekStartsOn"]} onChange={(e) => set("calendar.weekStartsOn", Number(e.target.value))}>
+              <option value={0}>Sunday</option>
+              <option value={1}>Monday</option>
+              <option value={6}>Saturday</option>
+            </select>
+          </span>
+          <span className="cm-opt-pair">
+            <span>Time scale:</span>
+            <select className="cm-input" value={values["calendar.timeScale"]} onChange={(e) => set("calendar.timeScale", Number(e.target.value))}>
+              {[5, 6, 10, 15, 30, 60].map((m) => (
+                <option key={m} value={m}>
+                  {m} minutes
+                </option>
+              ))}
+            </select>
+          </span>
         </div>
         <div className="cm-opt-row" title="Day and Week views: a second time column, to the right of yours">
           <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -300,37 +308,50 @@ function Preferences({ values, set }: Props) {
         </div>
         {!!values["calendar.secondZone"] && (
           <>
-            <div className="cm-opt-row">
-              <span>Your time zone:</span>
-              <span className="cm-muted">{zoneLabel(localZone())}</span>
-              <span style={{ marginLeft: 12 }}>Label:</span>
-              <input
-                className="cm-input"
-                style={{ width: 64 }}
-                maxLength={8}
-                placeholder={zoneAbbrev(localZone())}
-                value={values["calendar.zoneLabel"]}
-                onChange={(e) => set("calendar.zoneLabel", e.target.value)}
-              />
+            <div className="cm-opt-row wrap">
+              <span className="cm-opt-pair">
+                <span>Your time zone:</span>
+                <span className="cm-muted">{zoneLabel(localZone())}</span>
+              </span>
+              <span className="cm-opt-pair">
+                <span>Label:</span>
+                <input
+                  className="cm-input"
+                  style={{ width: 64 }}
+                  maxLength={8}
+                  placeholder={zoneAbbrev(localZone())}
+                  value={values["calendar.zoneLabel"]}
+                  onChange={(e) => set("calendar.zoneLabel", e.target.value)}
+                />
+              </span>
             </div>
-            <div className="cm-opt-row">
-              <span>Second time zone:</span>
-              <select className="cm-input" value={values["calendar.secondZone"]} onChange={(e) => set("calendar.secondZone", e.target.value)}>
-                {zoneList(Date.now(), [values["calendar.secondZone"]]).map((z) => (
-                  <option key={z.tz} value={z.tz}>
-                    {z.label}
-                  </option>
-                ))}
-              </select>
-              <span style={{ marginLeft: 12 }}>Label:</span>
-              <input
-                className="cm-input"
-                style={{ width: 64 }}
-                maxLength={8}
-                placeholder={zoneAbbrev(values["calendar.secondZone"])}
-                value={values["calendar.secondZoneLabel"]}
-                onChange={(e) => set("calendar.secondZoneLabel", e.target.value)}
-              />
+            <div className="cm-opt-row wrap">
+              <span className="cm-opt-pair" style={{ flex: "0 1 auto" }}>
+                <span>Second time zone:</span>
+                <select
+                  className="cm-input"
+                  style={{ flex: 1, minWidth: 0, maxWidth: 360 }}
+                  value={values["calendar.secondZone"]}
+                  onChange={(e) => set("calendar.secondZone", e.target.value)}
+                >
+                  {zoneList(Date.now(), [values["calendar.secondZone"]]).map((z) => (
+                    <option key={z.tz} value={z.tz}>
+                      {z.label}
+                    </option>
+                  ))}
+                </select>
+              </span>
+              <span className="cm-opt-pair">
+                <span>Label:</span>
+                <input
+                  className="cm-input"
+                  style={{ width: 64 }}
+                  maxLength={8}
+                  placeholder={zoneAbbrev(values["calendar.secondZone"])}
+                  value={values["calendar.secondZoneLabel"]}
+                  onChange={(e) => set("calendar.secondZoneLabel", e.target.value)}
+                />
+              </span>
             </div>
           </>
         )}
