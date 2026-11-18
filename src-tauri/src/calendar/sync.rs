@@ -53,7 +53,8 @@ pub struct CreateOp {
 #[serde(rename_all = "camelCase")]
 pub struct PatchOp {
     pub event_id: i64,
-    /// "all" = every editable field, "response" = attendees only (my response)
+    /// "all" = every editable field, "response" = attendees only (my response), "cosmetic",
+    /// "noconference" = take Google's video conference off (one video link per meeting)
     pub what: String,
     #[serde(default)]
     pub send_updates: Option<String>,
@@ -231,6 +232,9 @@ async fn push_one(ctx: &Arc<AppCtx>, api: &Api, op: PendingOp) -> anyhow::Result
                 json!({ "attendees": super::model::attendees_body(&row.attendees) })
             } else if p.what == "cosmetic" {
                 row.cosmetic_body()
+            } else if p.what == "noconference" {
+                let ev = gcal::remove_conference(api, &cal.gcal_id, &gid, send).await?;
+                return store_pushed(ctx, row, cal, ev, api.email.clone()).await;
             } else {
                 row.to_google(&cal)
             };
@@ -473,6 +477,36 @@ pub async fn pull_calendar(ctx: &Arc<AppCtx>, api: &Api, cal: &CalRow) -> anyhow
     Ok(n)
 }
 
+/// One video link per meeting: a meeting of yours still to come whose location or notes link Zoom
+/// or Teams, and to which Google also added a Meet (as it does by itself to events created in
+/// Gmail / Calendar or through a connector), has the Meet taken off. A series is fixed on its
+/// master (its occurrences follow).
+fn drops_extra_meet(row: &EventRow, ev: &Event, cal: &CalRow) -> bool {
+    row.organizer_self
+        && matches!(cal.access_role.as_str(), "owner" | "writer")
+        && row.recurring_event_id.is_none()
+        && row.end_ms > crate::clock::now_ms()
+        && super::conference::conference_is_extra(
+            ev.extra.get("conferenceData"),
+            ev.hangout_link.as_deref(),
+            ev.location.as_deref().unwrap_or(""),
+            ev.description.as_deref().unwrap_or(""),
+        )
+}
+
+fn enqueue_drop_meet(c: &Connection, row: &EventRow, id: i64) -> anyhow::Result<()> {
+    log::info!("event {id}: taking Google's extra Meet link off (the meeting links Zoom / Teams)");
+    // nobody is e-mailed: guests' Google calendars show the change, and nothing else changed
+    pending::enqueue(
+        c,
+        row.account_id,
+        DOMAIN,
+        "patch",
+        &PatchOp { event_id: id, what: "noconference".into(), send_updates: Some("none".into()) },
+    )?;
+    Ok(())
+}
+
 /// Store pulled events. `full`: they are the whole window, so synced rows in it that weren't
 /// returned are deleted; otherwise they are only the changes, and deleted ones arrive `cancelled`.
 /// `series`: (master id, all its occurrences in the window) for series that changed.
@@ -514,18 +548,34 @@ pub fn replace_window(
                 if row.etag.is_some()
                     && row.etag == ev.etag
                     && row.reminder_min == super::model::effective_reminder(ev.reminders.as_ref(), cal)
-                    && row.conference == super::conference::conference_text(ev.extra.get("conferenceData"), ev.hangout_link.as_deref())
+                    && row.conference
+                        == super::conference::shown_conference(
+                            ev.extra.get("conferenceData"),
+                            ev.hangout_link.as_deref(),
+                            ev.location.as_deref().unwrap_or(""),
+                            ev.description.as_deref().unwrap_or(""),
+                        )
                 {
                     continue;
                 }
                 row.apply_google(ev, cal, email);
+                let drop = drops_extra_meet(&row, ev, cal);
+                row.local_dirty |= drop;
                 row.save(&tx)?;
+                if drop {
+                    enqueue_drop_meet(&tx, &row, row.id)?;
+                }
                 changed += 1;
             }
             None => {
                 let mut row = EventRow { account_id: cal.account_id, calendar_id: cal.id, ..Default::default() };
                 row.apply_google(ev, cal, email);
-                row.insert(&tx)?;
+                let drop = drops_extra_meet(&row, ev, cal);
+                row.local_dirty = drop;
+                let id = row.insert(&tx)?;
+                if drop {
+                    enqueue_drop_meet(&tx, &row, id)?;
+                }
                 changed += 1;
             }
         }

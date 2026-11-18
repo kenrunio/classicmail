@@ -1,7 +1,7 @@
 //! Typed wrappers for the Google Calendar v3 REST API (the subset ClassicMail uses).
 
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, json};
 
 use super::{Api, seg};
 
@@ -234,6 +234,14 @@ pub async fn insert_event(api: &Api, calendar_id: &str, body: Value, send_update
 pub async fn patch_event(api: &Api, calendar_id: &str, event_id: &str, body: Value, send_updates: &str) -> anyhow::Result<Event> {
     let url = format!("{}/calendars/{}/events/{}", api.urls.calendar, seg(calendar_id), seg(event_id));
     api.patch(&url, &[("sendUpdates", send_updates.to_string())], body).await
+}
+
+/// Take the event's video conference (a Google Meet) off: `conferenceData: null`, which Google
+/// only honours with `conferenceDataVersion=1`.
+pub async fn remove_conference(api: &Api, calendar_id: &str, event_id: &str, send_updates: &str) -> anyhow::Result<Event> {
+    let url = format!("{}/calendars/{}/events/{}", api.urls.calendar, seg(calendar_id), seg(event_id));
+    let q = [("sendUpdates", send_updates.to_string()), ("conferenceDataVersion", "1".to_string())];
+    api.patch(&url, &q, json!({ "conferenceData": null })).await
 }
 
 /// `events.move`: change an event's organizer calendar (same account; not for instances).

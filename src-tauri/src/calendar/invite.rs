@@ -129,7 +129,13 @@ pub fn vtimezone(tz: Tz, from_year: i32, years: i32) -> String {
 fn description(ev: &Event) -> String {
     let notes = ev.description.clone().unwrap_or_default();
     let notes = if notes.contains('<') { super::conference::notes_text(&notes) } else { notes };
-    let call = super::conference::conference_text(ev.extra.get("conferenceData"), ev.hangout_link.as_deref());
+    // one video link: no Google Meet beside a Zoom / Teams link in the location or notes
+    let call = super::conference::shown_conference(
+        ev.extra.get("conferenceData"),
+        ev.hangout_link.as_deref(),
+        ev.location.as_deref().unwrap_or(""),
+        ev.description.as_deref().unwrap_or(""),
+    );
     [notes.trim(), call.trim()].iter().filter(|s| !s.is_empty()).copied().collect::<Vec<_>>().join("\n\n")
 }
 

@@ -89,6 +89,52 @@ async fn video_call_details_reach_events_synced_before() {
     assert!(has(&ctx).await.is_some(), "filled in again");
 }
 
+/// One video link per meeting: Google's Meet comes off a meeting of mine whose location links Zoom
+/// (not off someone else's), and isn't shown meanwhile.
+#[tokio::test]
+async fn extra_google_meet_comes_off_a_zoom_meeting() {
+    let (ctx, _g, a) = setup().await;
+    sync(&ctx, a).await;
+    let (_, gcal_id) = primary_gcal(&ctx).await;
+    let api = ctx.api(a).await.unwrap();
+    let start = crate::clock::now() + chrono::Duration::days(1);
+    let end = start + chrono::Duration::hours(1);
+    let meet = json!({ "conferenceSolution": { "name": "Google Meet" }, "entryPoints": [{ "entryPointType": "video", "uri": "https://meet.google.com/abc-defg-hij" }] });
+    let body = |summary: &str, location: &str| {
+        json!({
+            "summary": summary,
+            "location": location,
+            "start": { "dateTime": start.to_rfc3339() },
+            "end": { "dateTime": end.to_rfc3339() },
+            "conferenceData": meet,
+            "hangoutLink": "https://meet.google.com/abc-defg-hij",
+        })
+    };
+    let zoom =
+        gcal::insert_event(&api, &gcal_id, body("Arbe & AmerX call", "https://us02web.zoom.us/j/3276816384?pwd=x"), "none").await.unwrap();
+    let only_meet = gcal::insert_event(&api, &gcal_id, body("Meet only", "Office"), "none").await.unwrap();
+    sync(&ctx, a).await;
+    let conf = |s: &'static str| {
+        let ctx = ctx.clone();
+        async move {
+            ctx.db
+                .read(move |c| Ok(c.query_row("SELECT conference FROM events WHERE summary=?1", [s], |r| r.get::<_, String>(0))?))
+                .await
+                .unwrap()
+        }
+    };
+    assert_eq!(conf("Arbe & AmerX call").await, "", "the Meet isn't shown beside the Zoom link");
+    assert!(conf("Meet only").await.contains("meet.google.com"));
+    sync(&ctx, a).await;
+    let g = gcal::get_event(&api, &gcal_id, zoom.id.as_deref().unwrap()).await.unwrap();
+    assert!(g.extra.get("conferenceData").is_none() && g.hangout_link.is_none(), "taken off on Google: {g:?}");
+    assert_eq!(g.location.as_deref(), Some("https://us02web.zoom.us/j/3276816384?pwd=x"));
+    let g = gcal::get_event(&api, &gcal_id, only_meet.id.as_deref().unwrap()).await.unwrap();
+    assert!(g.hangout_link.is_some());
+    assert_eq!(count(&ctx, "SELECT COUNT(*) FROM pending_ops").await, 0);
+    assert_eq!(count(&ctx, "SELECT COUNT(*) FROM events WHERE local_dirty=1").await, 0);
+}
+
 #[tokio::test]
 async fn create_update_delete_round_trip() {
     let (ctx, _g, a) = setup().await;

@@ -429,7 +429,13 @@ impl EventRow {
             .map(super::categories::parse_list)
             .unwrap_or_default();
         self.created_ms = ev.created.as_deref().and_then(parse_rfc3339);
-        self.conference = super::conference::conference_text(ev.extra.get("conferenceData"), ev.hangout_link.as_deref());
+        // one video link: Google's Meet is dropped when the location or notes link Zoom / Teams
+        self.conference = super::conference::shown_conference(
+            ev.extra.get("conferenceData"),
+            ev.hangout_link.as_deref(),
+            &self.location,
+            &self.description,
+        );
         // your own subject for someone else's meeting (an organizer's own copy never has one)
         let own = private.and_then(|p| p.get(OWN_SUMMARY)).and_then(|v| v.as_str()).map(str::trim).filter(|s| !s.is_empty());
         match own {

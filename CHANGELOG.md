@@ -4,6 +4,12 @@ What changed in each ClassicMail version, newest first. Installers are built wit
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
 ## Unreleased
+- **One video link per meeting**: when a meeting of yours links Zoom or Teams in its location or
+  notes and Google adds a Google Meet as well (as it does by itself to events created in Gmail /
+  Calendar or through a connector), ClassicMail takes the Meet off the event at the next sync. Only
+  meetings still to come are fixed, and nobody is e-mailed about it. The order is Zoom, then Teams,
+  then Meet. Someone else's meeting isn't changed, but its extra Meet isn't shown, and invitations
+  ClassicMail sends carry only the one link.
 - **Calendar › Show Only**: a new toolbar button, "Show Only: All Categories", picks which
   categories the calendar shows. Ticking one shows just that category (its name is on the button);
   tick more to add them ("Some Categories"). "No Category" covers items without one, and "All

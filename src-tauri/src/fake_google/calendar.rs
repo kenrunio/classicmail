@@ -511,6 +511,10 @@ fn update_event(s: Shared, email: String, cal: String, id: String, body: Value, 
             for (k, x) in &patch {
                 if x.is_null() {
                     v.as_object_mut().unwrap().remove(k);
+                    // taking the conference off takes its Meet link along (as Google does)
+                    if k == "conferenceData" {
+                        v.as_object_mut().unwrap().remove("hangoutLink");
+                    }
                 } else {
                     v[k] = x.clone();
                 }

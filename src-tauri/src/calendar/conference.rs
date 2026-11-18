@@ -127,10 +127,91 @@ pub fn conference_text(conf: Option<&Value>, hangout_link: Option<&str>) -> Stri
     blocks.join("\n\n")
 }
 
+// ---- one video link per meeting ----------------------------------------------------------------
+// A meeting set up with a Zoom (or Teams) link in its location or notes often gets a Google Meet
+// added by Google as well; two links confuse the people joining. Zoom wins, then Teams, then Meet.
+
+/// The video service a link is for: 0 Zoom, 1 Teams, 2 Google Meet (lower is preferred).
+fn video_rank(link: &str) -> Option<u8> {
+    let host = url::Url::parse(link).ok()?.host_str()?.to_ascii_lowercase();
+    let is = |d: &str| host == d || host.ends_with(&format!(".{d}"));
+    if is("zoom.us") || is("zoomgov.com") {
+        Some(0)
+    } else if is("teams.microsoft.com") || is("teams.live.com") {
+        Some(1)
+    } else if is("meet.google.com") {
+        Some(2)
+    } else {
+        None
+    }
+}
+
+/// The best video service linked in this text (Google's redirects unwrapped).
+fn best_in_text(text: &str) -> Option<u8> {
+    LINK.find_iter(text).filter_map(|m| video_rank(&unredirect(m.as_str().trim_end_matches(['.', ',', ';', ')', '"', '\''])))).min()
+}
+
+/// The video service of Google's conference (add-on or Meet).
+fn conference_rank(conf: Option<&Value>, hangout_link: Option<&str>) -> Option<u8> {
+    let entries = conf.and_then(|c| c.get("entryPoints")).and_then(Value::as_array);
+    let video = entries.into_iter().flatten().filter(|e| s(e, "entryPointType") == "video").filter_map(|e| video_rank(s(e, "uri"))).min();
+    video.or_else(|| hangout_link.and_then(video_rank)).or_else(|| {
+        // a conference whose video link we can't read: its service's name
+        let name = conf.and_then(|c| c.get("conferenceSolution")).map(|c| s(c, "name").to_ascii_lowercase()).unwrap_or_default();
+        if name.contains("zoom") {
+            Some(0)
+        } else if name.contains("teams") {
+            Some(1)
+        } else if name.contains("meet") {
+            Some(2)
+        } else {
+            None
+        }
+    })
+}
+
+/// Google's conference is a second, less preferred link: the location or notes already link a
+/// better service (a Zoom link typed in, and a Meet Google added by itself).
+pub fn conference_is_extra(conf: Option<&Value>, hangout_link: Option<&str>, location: &str, description: &str) -> bool {
+    let Some(theirs) = conference_rank(conf, hangout_link) else { return false };
+    [location, description].iter().filter_map(|t| best_in_text(t)).min().is_some_and(|text| text < theirs)
+}
+
+/// `conference_text`, or "" when it is the extra link (`conference_is_extra`).
+pub fn shown_conference(conf: Option<&Value>, hangout_link: Option<&str>, location: &str, description: &str) -> String {
+    if conference_is_extra(conf, hangout_link, location, description) {
+        return String::new();
+    }
+    conference_text(conf, hangout_link)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn one_video_link_zoom_then_teams_then_meet() {
+        let meet = json!({ "conferenceSolution": { "name": "Google Meet" }, "entryPoints": [{ "entryPointType": "video", "uri": "https://meet.google.com/abc-defg-hij" }] });
+        let hl = Some("https://meet.google.com/abc-defg-hij");
+        // a Zoom link in the location: the Meet is the extra one
+        assert!(conference_is_extra(Some(&meet), hl, "https://us02web.zoom.us/j/271019?pwd=x", ""));
+        assert_eq!(shown_conference(Some(&meet), hl, "https://zoom.us/j/1", ""), "");
+        // Teams in the notes (HTML, behind Google's redirect) also beats Meet
+        let notes = r#"<a href="https://www.google.com/url?q=https://teams.microsoft.com/l/meetup-join/19%3ameeting&amp;sa=D">Join</a>"#;
+        assert!(conference_is_extra(Some(&meet), hl, "", notes));
+        // only Meet, or a Meet link in the text too: kept
+        assert!(!conference_is_extra(Some(&meet), hl, "", ""));
+        assert!(!conference_is_extra(Some(&meet), hl, "https://meet.google.com/abc-defg-hij", "Agenda"));
+        assert!(!conference_is_extra(None, hl, "", "") && !conference_is_extra(None, None, "https://zoom.us/j/1", ""));
+        // a bare hangoutLink counts as Meet
+        assert!(conference_is_extra(None, hl, "Zoom: https://zoom.us/j/1.", ""));
+        // a Zoom add-on beats a Teams link in the notes
+        let zoom = json!({ "conferenceSolution": { "name": "Zoom Meeting" }, "entryPoints": [{ "entryPointType": "video", "uri": "https://example.zoom.us/j/8" }] });
+        assert!(!conference_is_extra(Some(&zoom), None, "", "https://teams.microsoft.com/l/x"));
+        // look-alike hosts aren't Zoom
+        assert!(!conference_is_extra(Some(&meet), hl, "https://notzoom.us/j/1", ""));
+    }
 
     #[test]
     fn zoom_from_a_google_calendar_invitation() {
