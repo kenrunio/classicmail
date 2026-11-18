@@ -41,6 +41,10 @@ interface CalState {
   arrangement: Arrangement;
   /** side by side: calendars viewed in overlay mode on the first one */
   overlaid: number[];
+  /** toolbar "Show Only": the categories shown (lower case; "" = items without one); null = all */
+  showCats: string[] | null;
+  /** Day / Week: meetings of the same category kept in the same column */
+  lineUpCats: boolean;
   set: (p: Partial<Omit<CalState, "set">>) => void;
   setView: (v: ViewKind) => void;
   goTo: (day: number, view?: ViewKind) => void;
@@ -63,6 +67,8 @@ export const useCal = create<CalState>()(
       listMode: "none",
       arrangement: "sideBySide",
       overlaid: [],
+      showCats: null,
+      lineUpCats: true,
       // a new selection (an item or a slot) drops the Ctrl+click picks
       set: (p) => set(("selectedId" in p || "selection" in p) && !("alsoSelected" in p) ? { ...p, alsoSelected: [] } : p),
       setView: (view) => set({ view, customDays: 0, listMode: "none", search: "" }),
@@ -72,7 +78,8 @@ export const useCal = create<CalState>()(
     {
       name: "cm:calendar",
       // the Calendar always opens on this week (below), so neither the view nor the day is kept
-      partialize: (s) => ({ monthDetail: s.monthDetail, arrangement: s.arrangement, overlaid: s.overlaid }),
+      // "Show Only" isn't kept: the Calendar always opens on all categories
+      partialize: (s) => ({ monthDetail: s.monthDetail, arrangement: s.arrangement, overlaid: s.overlaid, lineUpCats: s.lineUpCats }),
       version: 1,
       migrate: (old) => {
         const { view: _view, ...rest } = (old ?? {}) as Record<string, unknown>;

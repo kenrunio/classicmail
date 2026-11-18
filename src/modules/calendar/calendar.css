@@ -1383,3 +1383,12 @@
 .cm-cal-ruler.second {
   border-left: none;
 }
+/* the other zone's times: thinner and lighter, so they aren't read as your own */
+.cm-cal-ruler.second .cm-cal-hour,
+.cm-cal-zones span + span {
+  color: var(--cal-zone2, #5b8fd0);
+  font-weight: 300;
+}
+.cm-cal-ruler.second .cm-cal-hour-n {
+  font-size: 13px;
+}

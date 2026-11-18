@@ -2,6 +2,60 @@ import { describe, expect, it } from "vitest";
 import { buildGroups, gridColumns, groupTarget, layoutDay, layoutLanes, spanInGroup } from "./layout";
 
 describe("layoutDay", () => {
+  it("lines up categories: each key keeps its own columns in the cluster", () => {
+    const p = layoutDay(
+      [
+        { id: 1, startMin: 480, endMin: 540, key: "arbe" }, // 8-9
+        { id: 2, startMin: 540, endMin: 570, key: "allt" }, // 9-9:30
+        { id: 3, startMin: 510, endMin: 600, key: "nxsn" }, // 8:30-10
+        { id: 4, startMin: 570, endMin: 600, key: "arbe" }, // 9:30-10 → arbe's column, not the free first one
+        { id: 5, startMin: 560, endMin: 620 }, // no category: last
+      ],
+      30,
+      true,
+    );
+    const byId = Object.fromEntries(p.map((x) => [x.item.id, x]));
+    expect(byId[1].col).toBe(0);
+    expect(byId[4].col).toBe(0);
+    expect(byId[3].col).toBe(1);
+    expect(byId[2].col).toBe(2);
+    expect(byId[5].col).toBe(3);
+    expect(byId[1].cols).toBe(4);
+  });
+
+  it("lines up categories: the same columns all day; stretches only over absent categories", () => {
+    const p = layoutDay(
+      [
+        { id: 1, startMin: 480, endMin: 540, key: "a" }, // 8-9
+        { id: 2, startMin: 480, endMin: 540, key: "b" }, // 8-9
+        { id: 3, startMin: 480, endMin: 540, key: "c" }, // 8-9
+        { id: 4, startMin: 600, endMin: 660, key: "b" }, // 10-11, with c only
+        { id: 5, startMin: 600, endMin: 660, key: "c" },
+        { id: 6, startMin: 720, endMin: 780, key: "c" }, // 12-13 alone: the full width
+      ],
+      30,
+      true,
+    );
+    const byId = Object.fromEntries(p.map((x) => [x.item.id, x]));
+    expect([byId[4].col, byId[4].cols, byId[4].span]).toEqual([1, 3, 1]);
+    expect([byId[5].col, byId[5].cols]).toEqual([2, 3]);
+    expect([byId[6].col, byId[6].cols]).toEqual([0, 1]);
+    // a's item can't stretch over b's (present in its cluster)
+    expect(byId[1].span).toBe(1);
+  });
+
+  it("ignores keys unless asked", () => {
+    const p = layoutDay(
+      [
+        { id: 1, startMin: 480, endMin: 540, key: "a" },
+        { id: 2, startMin: 510, endMin: 600, key: "b" },
+        { id: 3, startMin: 570, endMin: 600, key: "b" },
+      ],
+      30,
+    );
+    expect(p.find((x) => x.item.id === 3)!.col).toBe(0);
+  });
+
   it("puts non-overlapping items in one column", () => {
     const p = layoutDay([
       { id: 1, startMin: 540, endMin: 600 },

@@ -1,13 +1,13 @@
 // Calendar module: Outlook 2007 calendar (Day / Work Week / Week / Month), Date Navigator,
 // My Calendars, appointment / meeting items, reminders.
 import type { ModuleDef, ModuleMenus } from "../../shell/types";
-import { Toolbar, TbButton, TbDropdown, TbSplit, TbSep, type MenuItem } from "../../ui";
+import { Icon, Toolbar, TbButton, TbDropdown, TbSplit, TbSep, showMenu, type MenuItem } from "../../ui";
 import { newItemMenu } from "../../shell/newItems";
 import { openWindow } from "../../api/windows";
 import { NavPane } from "./NavPane";
 import { CalendarView, navigate } from "./CalendarView";
 import { copyItem, deleteItem, pasteItem, setCategories } from "./actions";
-import { categorizeMenu, currentCategories, openColorCategories, useCategories } from "./categories";
+import { categorizeMenu, currentCategories, openColorCategories, showOnlyLabel, toggleShowOnly, useCategories } from "./categories";
 import { openCleanUp } from "./cleanup";
 import { goToDate, goToToday, newFromSelection, timeScaleItems, viewItems } from "./menus";
 import { useCal, useCalSettings, type MonthDetail } from "./state";
@@ -51,6 +51,55 @@ function arrangeItems(): MenuItem[] {
   ];
 }
 
+/** Toolbar "Show Only ▾": stays open while categories are ticked (each click redraws it). */
+function showOnlyItems(reopen: () => void): MenuItem[] {
+  const s = useCal.getState();
+  const list = currentCategories();
+  const show = s.showCats;
+  const pick = (name: string) => {
+    useCal.getState().set({ showCats: toggleShowOnly(useCal.getState().showCats, name, currentCategories()) });
+    reopen();
+  };
+  return [
+    { label: "All Categories", checked: !show, keepOpen: true, onClick: () => (useCal.getState().set({ showCats: null }), reopen()) },
+    { type: "separator" },
+    ...list.map((c): MenuItem => ({ label: c.name, icon: `cm-cat-${c.color}`, checked: !!show?.includes(c.name.toLowerCase()), keepOpen: true, onClick: () => pick(c.name) })),
+    { label: "No Category", icon: "cm-cat-0", checked: !!show?.includes(""), keepOpen: true, onClick: () => pick("") },
+    { type: "separator" },
+    {
+      label: "Line Up Categories in Columns",
+      checked: s.lineUpCats,
+      keepOpen: true,
+      onClick: () => (useCal.getState().set({ lineUpCats: !useCal.getState().lineUpCats }), reopen()),
+    },
+  ];
+}
+
+function ShowOnlyButton() {
+  const showCats = useCal((s) => s.showCats);
+  const list = useCategories();
+  const label = showOnlyLabel(showCats, list);
+  return (
+    <button
+      className={`cm-tb-btn${showCats ? " pressed" : ""}`}
+      title={
+        showCats
+          ? `Showing only: ${showCats.map((n) => (n ? (list.find((c) => c.name.toLowerCase() === n)?.name ?? n) : "No Category")).join(", ")}`
+          : "Show only the items of some categories"
+      }
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        const open = () => showMenu(r.left, r.bottom, showOnlyItems(open), { minWidth: 200 });
+        open();
+      }}
+    >
+      <span>Show Only: {label}</span>
+      <Icon name="chevron-down" size={10} />
+    </button>
+  );
+}
+
 function ModToolbar() {
   const st = useCal();
   const selected = useSelectedItem();
@@ -84,6 +133,7 @@ function ModToolbar() {
       />
       <TbSep />
       <TbDropdown icon="cm-cat-1" label="Categorize" title="Categorize" menu={() => categorizeItems(selected())} />
+      <ShowOnlyButton />
       <TbButton icon="delete" label="Clean Up" title="Clean Up Calendar: find and delete duplicate items" onClick={openCleanUp} />
       <TbSep />
       <TbButton icon="address-book" title="Address Book (Ctrl+Shift+B)" onClick={() => openWindow("address-book", {}, { label: "address-book", title: "Address Book" })} />

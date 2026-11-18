@@ -12,7 +12,7 @@ import { addMonths } from "date-fns";
 import { dayStart, parseDayKey, plusDays, rangeTitle, viewDays, type ViewKind } from "./dates";
 import { DayWeekGrid, type GridGroup } from "./DayWeekGrid";
 import { buildGroups } from "./layout";
-import { ColorCategoriesHost, shortcutCategory, toggled, useCategories, SHORTCUTS } from "./categories";
+import { ColorCategoriesHost, passesShowOnly, shortcutCategory, toggled, useCategories, SHORTCUTS } from "./categories";
 import { CleanUpHost } from "./cleanup";
 import { MonthGrid } from "./MonthGrid";
 import { ListView, type ListRow } from "./ListView";
@@ -62,6 +62,7 @@ export function CalendarView() {
       listMode: s.listMode,
       arrangement: s.arrangement,
       overlaid: s.overlaid,
+      showCats: s.showCats,
       set: s.set,
       setView: s.setView,
     })),
@@ -95,13 +96,17 @@ export function CalendarView() {
     }),
     combine: dataOf,
   });
-  const gridGroups: GridGroup[] = useMemo(() => calGroups.map((g, i) => ({ cals: g, events: groupData[i] ?? [] })), [calGroups, groupData]);
+  const categories = useCategories();
+  // toolbar "Show Only": just the items of the categories ticked
+  const gridGroups: GridGroup[] = useMemo(
+    () => calGroups.map((g, i) => ({ cals: g, events: (groupData[i] ?? []).filter((e) => passesShowOnly(e, categories, st.showCats)) })),
+    [calGroups, groupData, categories, st.showCats],
+  );
   // one array per data change, so the Month grid's layout memo holds between renders
   const list = useMemo(() => gridGroups.flatMap((g) => g.events), [gridGroups]);
   const results = useRpc<ListRow[]>(["calendar", "search", search], "calendar.search", { query: search }, { enabled: listing === "search" });
   const series = useRpc<ListRow[]>(["calendar", "series"], "calendar.listSeries", {}, { enabled: listing === "recurring" });
   const searchRef = useRef<HTMLInputElement>(null);
-  const categories = useCategories();
   const onOverlay = (calendarId: number, overlay: boolean) => {
     const cur = useCal.getState().overlaid;
     st.set({ overlaid: overlay ? [...new Set([...cur, calendarId])] : cur.filter((x) => x !== calendarId) });

@@ -10,6 +10,8 @@ export interface Timed {
   /** minutes from the column's midnight (may be clipped) */
   startMin: number;
   endMin: number;
+  /** "Line up categories": items with the same key (their first category) share columns */
+  key?: string;
 }
 
 export interface Placed<T> {
@@ -28,22 +30,60 @@ export interface Placed<T> {
  * Outlook-style layout: items that overlap (transitively) form a cluster; each item takes the
  * left-most free column; every item in a cluster gets width 1/cols, stretched right over free
  * columns. `minLen` is the minimum visual length (one slot) used for overlap tests.
+ *
+ * `byKey`: inside a cluster each key (category) gets its own block of columns, in the order the
+ * keys first appear that day (no key last), so one client's meetings stay in one column.
  */
-export function layoutDay<T extends Timed>(items: T[], minLen = 30): Placed<T>[] {
+export function layoutDay<T extends Timed>(items: T[], minLen = 30, byKey = false): Placed<T>[] {
   const sorted = [...items].sort((a, b) => a.startMin - b.startMin || b.endMin - a.endMin || a.id - b.id);
   const out: Placed<T>[] = [];
   let cluster: Placed<T>[] = [];
   let colEnds: number[] = [];
   let clusterEnd = -Infinity;
   const vEnd = (p: { startMin: number; endMin: number }) => Math.max(p.endMin, p.startMin + minLen);
+  // by key: every key (in the order it first appears; no key last) has a block of columns that
+  // holds for the whole day, so a category stays in the same place from morning to evening
+  const rank = new Map<string, number>();
+  for (const it of sorted) if (it.key && !rank.has(it.key)) rank.set(it.key, rank.size);
+  const rankOf = (k?: string) => (k ? rank.get(k)! : rank.size);
+  const dayCol = new Map<T, number>();
+  const colKey: number[] = [];
+  if (byKey && rank.size) {
+    for (let k = 0; k <= rank.size; k++) {
+      const ends: number[] = [];
+      for (const it of sorted) {
+        if (rankOf(it.key) !== k) continue;
+        let c = ends.findIndex((end) => end <= it.startMin);
+        if (c < 0) {
+          c = ends.length;
+          ends.push(vEnd(it));
+        } else ends[c] = vEnd(it);
+        dayCol.set(it, colKey.length + c);
+      }
+      colKey.push(...ends.map(() => k));
+    }
+  }
+  // a cluster of several keys takes the day's columns (one key alone keeps the plain layout)
+  let keyed = false;
+  let present = new Set<number>();
+  const placeByKey = () => {
+    present = new Set(cluster.map((p) => rankOf(p.item.key)));
+    keyed = present.size > 1;
+    if (!keyed) return;
+    for (const p of cluster) p.col = dayCol.get(p.item)!;
+    colEnds = colKey.map(() => 0);
+  };
 
   const flush = () => {
+    if (dayCol.size) placeByKey();
     const cols = colEnds.length;
     for (const p of cluster) {
       p.cols = cols;
-      // stretch over following columns that are free during this item
+      // stretch over following columns that are free during this item (lined up: only its own
+      // category's, or those of categories with nothing in this cluster)
       let span = 1;
       for (let c = p.col + 1; c < cols; c++) {
+        if (keyed && colKey[c] !== rankOf(p.item.key) && present.has(colKey[c])) break;
         const blocked = cluster.some((o) => o.col === c && o.startMin < vEnd(p) && vEnd(o) > p.startMin);
         if (blocked) break;
         span++;

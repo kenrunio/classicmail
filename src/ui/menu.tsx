@@ -17,6 +17,8 @@ export type MenuItem =
       radio?: boolean;
       bold?: boolean;
       onClick?: () => void;
+      /** clicking runs onClick without closing the menu (onClick reopens it with fresh items) */
+      keepOpen?: boolean;
       submenu?: MenuItem[];
     }
   | { type: "separator" }
@@ -211,7 +213,7 @@ function PopupMenu({
                 setSubOpen(i);
                 return;
               }
-              closeMenu();
+              if (!it.keepOpen) closeMenu();
               it.onClick?.();
             }}
           >

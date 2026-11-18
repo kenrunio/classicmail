@@ -144,6 +144,30 @@ export function itemColor(ev: Colorable, list: Category[]): string {
   return itemColors(ev, list)[0];
 }
 
+/** Toolbar "Show Only": shown categories (lower case, "" = no category), null = all. */
+export function passesShowOnly(ev: Colorable, list: Category[], show: string[] | null): boolean {
+  if (!show) return true;
+  const names = effectiveCategories(ev, list).map((n) => n.toLowerCase());
+  return names.length ? names.some((n) => show.includes(n)) : show.includes("");
+}
+
+/** Toolbar "Show Only" choice for a click on `name` ("" = no category): from all categories it
+ *  shows just that one; after that it ticks / unticks; none or every one left is all again. */
+export function toggleShowOnly(show: string[] | null, name: string, list: Category[]): string[] | null {
+  const n = name.toLowerCase();
+  if (!show) return [n];
+  const next = show.includes(n) ? show.filter((x) => x !== n) : [...show, n];
+  const every = ["", ...list.map((c) => c.name.toLowerCase())];
+  return next.length === 0 || every.every((x) => next.includes(x)) ? null : next;
+}
+
+/** "All Categories", the one category shown, or "Some Categories". */
+export function showOnlyLabel(show: string[] | null, list: Category[]): string {
+  if (!show) return "All Categories";
+  if (show.length === 1) return show[0] === "" ? "No Category" : (findCategory(show[0], list)?.name ?? show[0]);
+  return "Some Categories";
+}
+
 export function shortcutCategory(key: string, list: Category[]) {
   return list.find((c) => c.shortcut.toLowerCase() === key.toLowerCase())?.name;
 }

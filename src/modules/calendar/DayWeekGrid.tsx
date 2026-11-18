@@ -8,7 +8,7 @@ import { errorBox, Icon, showMenu } from "../../ui";
 import { atMinutes, DAY, dayStart, fmtLongDate, wallMinutes, MIN, minutesOf, plusDays, sameDay, uses12h, dayKey } from "./dates";
 import { gridColumns, groupTarget, isBandItem, layoutDay, layoutLanes, spanInGroup } from "./layout";
 import { apptColors, stripeBackground, tint } from "./color";
-import { itemColors, useCategories } from "./categories";
+import { effectiveCategories, itemColors, useCategories } from "./categories";
 import { calLabel } from "./NavPane";
 import { itemMenu, slotMenu } from "./menus";
 import { askSendUpdate, openItem } from "./actions";
@@ -121,6 +121,9 @@ export function DayWeekGrid({
   const evs = useMemo(() => evsByGroup.flat(), [evsByGroup]);
   // category colours (subject matching runs regexes): once per data change, not on every mouse move
   const colorsById = useMemo(() => new Map(evs.map((e) => [e.id, itemColors(e, cats)])), [evs, cats]);
+  // "Line Up Categories in Columns": an item's first category keeps it in that category's column
+  const lineUpCats = useCal((s) => s.lineUpCats);
+  const catKey = useMemo(() => new Map(evs.map((e) => [e.id, effectiveCategories(e, cats)[0]?.toLowerCase() || undefined])), [evs, cats]);
   const band = useMemo(() => {
     const items = evsByGroup.flatMap((list, g) =>
       list
@@ -153,10 +156,10 @@ export function DayWeekGrid({
         const de = plusDays(d, 1).getTime();
         const items = (evsByGroup[c.group] ?? [])
           .filter((e) => !isBandItem(e) && e.start < de && (e.end > ds || (e.end === e.start && e.start >= ds)))
-          .map((e) => ({ id: e.id, ev: e, startMin: wallMinutes(e.start, d), endMin: wallMinutes(e.end, d) }));
-        return layoutDay(items, scale);
+          .map((e) => ({ id: e.id, ev: e, startMin: wallMinutes(e.start, d), endMin: wallMinutes(e.end, d), key: lineUpCats ? catKey.get(e.id) : undefined }));
+        return layoutDay(items, scale, lineUpCats);
       }),
-    [evsByGroup, days, cols, scale],
+    [evsByGroup, days, cols, scale, lineUpCats, catKey],
   );
 
   // ---- geometry -----------------------------------------------------------------------------

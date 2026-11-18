@@ -4,6 +4,17 @@ What changed in each ClassicMail version, newest first. Installers are built wit
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
 ## Unreleased
+- **Calendar › Show Only**: a new toolbar button, "Show Only: All Categories", picks which
+  categories the calendar shows. Ticking one shows just that category (its name is on the button);
+  tick more to add them ("Some Categories"). "No Category" covers items without one, and "All
+  Categories" shows everything again. The menu stays open while you tick, and the Calendar always
+  opens on all categories.
+- **Busy days line up by category**: in Day and Week, meetings of the same category keep their
+  own column all day, so one client's meetings sit one under the other instead of wherever there
+  was room. A meeting with nothing beside it still takes the full width. Turn it off with "Line Up
+  Categories in Columns" at the bottom of the Show Only menu.
+- **The second time zone's times are lighter**: the other zone's hours (EST beside your own) are
+  thinner, smaller and pale blue, so they aren't read as your local time.
 - **Options › Calendar fits the window**: no more sideways scroll bar. When the window is narrow,
   a row's second setting (Gap between meetings, Time scale, a time zone's Label) moves to the next
   line, and the long time zone list shrinks to fit. "Calendar work week" is now "Work week".
