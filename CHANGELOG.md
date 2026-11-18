@@ -3,7 +3,7 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
-## Unreleased
+## 1.24.12 — 2026-11-18
 - **One video link per meeting**: when a meeting of yours links Zoom or Teams in its location or
   notes and Google adds a Google Meet as well (as it does by itself to events created in Gmail /
   Calendar or through a connector), ClassicMail takes the Meet off the event at the next sync. Only
