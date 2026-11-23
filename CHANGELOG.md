@@ -3,7 +3,7 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
-## Unreleased
+## 1.24.13 — 2026-11-23
 - **Large files go as Google Drive links**: Attach File now takes a file of any size. One too large
   for Gmail (over 25 MB, or what doesn't fit beside the other attachments) is put in a
   "ClassicMail" folder in your Google Drive and sent as a link. ClassicMail asks first ("Don't ask
