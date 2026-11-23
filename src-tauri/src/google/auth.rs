@@ -23,7 +23,12 @@ pub const SCOPES: &[&str] = &[
     "https://www.googleapis.com/auth/tasks",
     // Rules kept as Gmail filters (rules::gmail_filters); optional, nothing else needs it
     "https://www.googleapis.com/auth/gmail.settings.basic",
+    // Large attachments sent as Google Drive links (mail::compose::drive); optional. Only the
+    // files and folder ClassicMail creates itself: it can't see the rest of the Drive
+    DRIVE_SCOPE,
 ];
+
+pub const DRIVE_SCOPE: &str = "https://www.googleapis.com/auth/drive.file";
 
 const KEYRING_SERVICE: &str = "ClassicMail";
 

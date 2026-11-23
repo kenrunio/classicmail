@@ -370,6 +370,24 @@ pub async fn parse_raw(ctx: &Arc<AppCtx>, raw: &[u8]) -> anyhow::Result<Compose>
             ..Default::default()
         });
     }
+    // files sent as Google Drive links: their cards come back as attachments
+    let (html, mut linked) = super::drive::take_cards(&c.html);
+    c.html = html;
+    for s in &mut linked {
+        // an upload that hadn't finished when the draft was saved is only known on that computer
+        // (by its number): the same number here must be the same file
+        if let Some(d) = s.drive.as_mut()
+            && let Some(id) = d.upload_id
+        {
+            let same = super::drive::load(ctx, id).await?.is_some_and(|u| Some(&u.name) == s.name.as_ref());
+            if same {
+                s.path = super::drive::load(ctx, id).await?.map(|u| u.path);
+            } else {
+                d.upload_id = None;
+            }
+        }
+    }
+    c.attachments.extend(linked);
     Ok(c)
 }
 

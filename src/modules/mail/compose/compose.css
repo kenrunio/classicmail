@@ -239,6 +239,10 @@
 .cm-compose-att-size {
   color: var(--text-muted);
 }
+/* a Google Drive upload that failed (right-click: Retry Upload) */
+.cm-compose-att-size.failed {
+  color: #c00000;
+}
 
 /* body */
 /* The page (your reply, then the original) fills the rest of the window, so every click in the

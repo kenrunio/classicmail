@@ -44,6 +44,13 @@ export const SETTING_DEFAULTS = {
   "calendar.secondZone": "",
   "calendar.secondZoneLabel": "",
   "calendar.zoneLabel": "",
+  /** large attachments sent as Google Drive links (src-tauri/src/mail/compose/drive*.rs): the folder's
+   *  name, old files to the Drive trash after cleanupDays, and a recipient with no Google account
+   *  ("anyone" with the link may open the file, or it stays "private") */
+  "drive.folderName": "ClassicMail",
+  "drive.cleanup": false,
+  "drive.cleanupDays": 30,
+  "drive.noGoogleAccount": "anyone",
   "app.closeToTray": false,
   /** how many actions Ctrl+Z can undo (1–100); the history is not kept across restarts */
   "app.undoSteps": 20,

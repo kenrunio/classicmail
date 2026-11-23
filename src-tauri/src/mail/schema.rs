@@ -237,4 +237,33 @@ CREATE TABLE attachment_folders (
 );
 "#,
     ),
+    (
+        10,
+        r#"
+-- attachments too large for Gmail, uploaded to the account's Google Drive and sent as a link
+-- (src/mail/compose/drive.rs). session_url: the resumable upload, kept so it carries on after a
+-- break or a restart; temp: path is ClassicMail's own copy (a dropped file), deleted once uploaded
+CREATE TABLE drive_uploads (
+  id INTEGER PRIMARY KEY,
+  account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  path TEXT NOT NULL,
+  name TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  temp INTEGER NOT NULL DEFAULT 0,
+  session_url TEXT,
+  sent INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'uploading',   -- uploading | done | failed
+  error TEXT,
+  file_id TEXT,
+  link TEXT,
+  created_at INTEGER NOT NULL
+);
+-- each account's ClassicMail folder in its Drive (found again by its mark when this is lost)
+CREATE TABLE drive_folders (
+  account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+  folder_id TEXT NOT NULL
+);
+"#,
+    ),
 ];

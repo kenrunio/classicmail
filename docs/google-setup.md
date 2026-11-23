@@ -22,7 +22,7 @@ project.
 2. Top bar → project picker → **New Project** → name it `ClassicMail` → **Create**, then make sure the
    new project is selected in the top bar.
 
-## 2. Turn on the four APIs
+## 2. Turn on the five APIs
 
 Go to **APIs & Services → Library**, search for each of these and click **Enable**:
 
@@ -30,6 +30,8 @@ Go to **APIs & Services → Library**, search for each of these and click **Enab
 - Google Calendar API
 - People API
 - Google Tasks API
+- Google Drive API (for files too large for e-mail, sent as Drive links; ClassicMail sees only the
+  folder and files it creates itself)
 
 ## 3. Set up the sign-in screen
 

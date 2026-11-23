@@ -10,6 +10,7 @@
 //! * `mail.outbox.list { accountId? }`, `cancel { id }` (back to Drafts), `retry { id }`
 //! * `mail.signatures.list / save / delete / setDefaults`, `mail.sendAs.list { accountId }`
 //! * `mail.recipients.suggest { query, limit? }`, `mail.recipients.forget { email }`
+//! * `mail.drive.*` — large attachments sent as Google Drive links (drive.rs, drive_folder.rs)
 //! * `mail.desktopAlert.test { count? }` — emits a `mail.newMail` for the desktop alert (demo/testing)
 //!
 //! Events: `mail.changed`, `mail.outbox { accountId }`, `mail.signatures {}`, `mail.sendAs { accountId }`.
@@ -17,6 +18,8 @@
 pub mod attachments;
 pub mod cleanup;
 pub mod drafts;
+pub mod drive;
+pub mod drive_folder;
 pub mod dropped;
 pub mod mime;
 pub mod model;
@@ -28,6 +31,8 @@ pub mod signatures;
 pub mod store;
 pub mod webpage;
 
+#[cfg(test)]
+mod drive_tests;
 #[cfg(test)]
 mod tests;
 
@@ -66,6 +71,7 @@ pub fn register(r: &mut Registry) {
     r.add("mail.compose.rememberAttachments", recent::remember);
     r.add("mail.compose.stageDropped", dropped::stage);
     r.add("mail.recipients.forget", recipients::forget);
+    drive::register(r);
     r.add("mail.desktopAlert.test", desktop_alert_test);
 }
 

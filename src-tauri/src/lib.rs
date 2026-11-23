@@ -170,6 +170,14 @@ pub fn run() {
             mapi::start(ctx.clone());
             // reopened drafts' attachment copies that nothing refers to any more
             mail::compose::cleanup::start(ctx.clone());
+            // large attachments: uploads to Google Drive a restart interrupted, and the daily clean-up
+            {
+                let c3 = ctx.clone();
+                tauri::async_runtime::spawn(async move {
+                    mail::compose::drive::resume_all(c3.clone());
+                    mail::compose::drive_folder::start_daily(c3);
+                });
+            }
             // the AI model list, refreshed once a day (models are added and retired)
             ai::models::start_refresh(ctx.clone());
             shell::setup(app, ctx)?;

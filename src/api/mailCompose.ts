@@ -14,7 +14,53 @@ export interface AttachmentSpec {
   name?: string;
   size?: number;
   mimeType?: string;
+  /** too large for Gmail: sent as a Google Drive link (src-tauri/src/mail/compose/drive.rs) */
+  drive?: DriveLink | null;
 }
+
+export interface DriveLink {
+  uploadId?: number | null;
+  fileId?: string | null;
+  link?: string | null;
+}
+
+/** An upload to Google Drive (`drive.upload` events carry it too). */
+export interface DriveUpload {
+  id: number;
+  accountId: number;
+  path: string;
+  name: string;
+  size: number;
+  sent: number;
+  status: "uploading" | "done" | "failed";
+  error?: string | null;
+  fileId?: string | null;
+  link?: string | null;
+}
+
+export interface DriveAccountStatus {
+  accountId: number;
+  email: string;
+  state: "ok" | "none" | "signIn" | "error";
+  message?: string | null;
+  folderId?: string | null;
+  folderName?: string | null;
+  folderLink?: string | null;
+  files: number;
+  bytes: number;
+  usage?: number | null;
+  limit?: number | null;
+}
+
+export const driveApi = {
+  upload: (accountId: number, path: string, temp = false) => rpc<DriveUpload>("mail.drive.upload", { accountId, path, temp }),
+  uploads: (ids: number[]) => rpc<DriveUpload[]>("mail.drive.uploads", { ids }),
+  retry: (id: number) => rpc<void>("mail.drive.retry", { id }),
+  cancel: (id: number) => rpc<void>("mail.drive.cancel", { id }),
+  status: () => rpc<{ folderName: string; accounts: DriveAccountStatus[] }>("mail.drive.status", {}),
+  renameFolder: (name: string) => rpc<void>("mail.drive.renameFolder", { name }),
+  cleanNow: (days?: number) => rpc<{ trashed: number; failed: string[] }>("mail.drive.cleanNow", { days }),
+};
 
 export type Importance = "low" | "normal" | "high";
 export type ComposeMode = "new" | "reply" | "replyAll" | "forward" | "draft";

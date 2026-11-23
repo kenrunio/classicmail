@@ -18,7 +18,6 @@ use crate::{
 
 const SETTING: &str = "compose.recentAttachments";
 const KEEP: usize = 30;
-const MAX_ATTACH: u64 = 25 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -46,8 +45,9 @@ fn describe(p: &Path, used: i64) -> Option<RecentFile> {
         return None;
     }
     let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
-    // shortcuts, mail archives and anything over Gmail's 25 MB limit can't sensibly be attached
-    if matches!(ext.as_str(), "lnk" | "url" | "pst" | "ost" | "tmp") || md.len() > MAX_ATTACH {
+    // shortcuts and mail archives can't sensibly be attached (a file over Gmail's 25 MB limit can:
+    // it goes as a Google Drive link, compose/drive.rs)
+    if matches!(ext.as_str(), "lnk" | "url" | "pst" | "ost" | "tmp") {
         return None;
     }
     let saved = md.modified().map(ms).unwrap_or(0);

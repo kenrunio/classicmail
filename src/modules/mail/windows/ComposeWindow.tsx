@@ -12,6 +12,7 @@ import { queryClient } from "../../../api/query";
 import { markPainted, windowParams, setWindowTitle } from "../../../api/windows";
 import {
   composeApi,
+  driveApi,
   formatAddr,
   formatSize,
   isValidEmail,
@@ -64,6 +65,7 @@ import {
 import { attachTypingFixes } from "../compose/typingFixes";
 import { Big, Small, SmallSplit, Row, Stack, Check } from "../compose/parts";
 import { CIcon, fileIcon } from "../compose/icons";
+import { LINK_ABOVE, askSendAsLink, planLinks, uploadNote, useDriveUploads } from "../compose/driveLinks";
 import {
   CheckNamesDialog,
   ColorPalette,
@@ -168,14 +170,25 @@ interface AttachItem {
 }
 
 /** A caret at the start of `page`. */
-/** A dropped file's contents, base64. */
-function base64Of(f: File): Promise<string> {
+/** A dropped file's contents (or a part of it), base64. */
+function base64Of(f: Blob, name = (f as File).name): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(String(r.result).replace(/^data:[^,]*,/, ""));
-    r.onerror = () => reject(r.error ?? new Error(`${f.name} couldn't be read`));
+    r.onerror = () => reject(r.error ?? new Error(`${name} couldn't be read`));
     r.readAsDataURL(f);
   });
+}
+
+/** A dropped file too large to hand over in one piece (one sent as a Drive link): in 8 MB parts. */
+async function stageInParts(f: File): Promise<string> {
+  const PART = 8 * 1024 * 1024;
+  let path: string | undefined;
+  for (let at = 0; at < f.size; at += PART) {
+    const data = await base64Of(f.slice(at, at + PART), f.name);
+    path = await rpc<string>("mail.compose.stageDropped", { name: f.name, data, append: path });
+  }
+  return path!;
 }
 
 function pageStart(page: HTMLElement): Range {
@@ -256,6 +269,10 @@ function ComposeForm({ prep, font, merge0 }: { prep: Prepared; font: ComposeFont
   const [bcc, setBcc] = useState<Recipient[]>(toRecipients(c0.bcc));
   const [subject, setSubject] = useState(c0.subject);
   const [attachments, setAttachments] = useState<AttachItem[]>(() => c0.attachments.filter((a) => !a.cid).map(toAttachItem));
+  // files sent as Google Drive links: their uploads (progress, done, failed)
+  const uploads = useDriveUploads(attachments.map((a) => a.spec.drive?.uploadId).filter((id): id is number => !!id));
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
   // selected attachments (keys); click, Ctrl/Shift+click and Ctrl+A select, Delete removes them
   const [selAttach, setSelAttach] = useState<string[]>([]);
   const attAnchor = useRef<number | null>(null);
@@ -857,6 +874,16 @@ function ComposeForm({ prep, font, merge0 }: { prep: Prepared; font: ComposeFont
         return;
       }
     }
+    const failedUpload = attachments.find((a) => a.spec.drive?.uploadId && uploads[a.spec.drive.uploadId]?.status === "failed");
+    if (failedUpload) {
+      const u = uploads[failedUpload.spec.drive!.uploadId!];
+      await alertBox(
+        `The upload of "${failedUpload.name}" to Google Drive failed:\n\n${u?.error ?? "unknown error"}\n\nRight-click it to try again, or remove it.`,
+        "Send",
+        "warning",
+      );
+      return;
+    }
     const mine = yourPart();
     const bodyText = plainText ? plainValue : mine.text;
     // a picture in what you wrote counts as attached too ("see the attached chart" over a pasted one)
@@ -978,14 +1005,44 @@ function ComposeForm({ prep, font, merge0 }: { prep: Prepared; font: ComposeFont
   });
 
   // ---- drag & drop files → attachments ------------------------------------------------------
+  const accountRef = useRef(accountId);
+  accountRef.current = accountId;
   const addPaths = useCallback(
-    async (paths: string[], remember = true) => {
+    async (paths: string[], remember = true, temp = false) => {
       if (!paths.length) return;
       try {
         const infos = await composeApi.fileInfo(paths);
-        const ok = infos.filter((i) => i.exists);
+        let ok = infos.filter((i) => i.exists);
         if (ok.length < infos.length) alertBox("Folders and missing files can't be attached.", "Attach File", "warning");
-        setAttachments((a) => [...a, ...ok.map((i) => toAttachItem({ path: i.path, name: i.name, size: i.size, mimeType: i.mimeType }))]);
+        // too large for Gmail (alone, or beside what is attached): sent as Google Drive links
+        const attached = attachmentsRef.current.filter((a) => !a.spec.drive).reduce((t, a) => t + a.size, 0);
+        const plan = planLinks(
+          attached,
+          ok.map((i) => i.size),
+        );
+        let asLink = ok.filter((_, i) => plan.has(i));
+        if (asLink.length) {
+          const folder = (await rpc<string | null>("settings.get", { key: "drive.folderName" }).catch(() => null)) || "ClassicMail";
+          if (!(await askSendAsLink(asLink, folder))) {
+            ok = ok.filter((i) => !asLink.includes(i));
+            asLink = [];
+          }
+        }
+        const items: AttachItem[] = [];
+        for (const i of ok) {
+          const spec: AttachmentSpec = { path: i.path, name: i.name, size: i.size, mimeType: i.mimeType };
+          if (asLink.includes(i)) {
+            try {
+              const u = await driveApi.upload(accountRef.current, i.path, temp);
+              spec.drive = { uploadId: u.id };
+            } catch (e) {
+              errorBox(e, "Send as Google Drive Link");
+              continue;
+            }
+          }
+          items.push(toAttachItem(spec));
+        }
+        setAttachments((a) => [...a, ...items]);
         // most recently attached files head the Attach File › Recent Items list next time, and the
         // folder becomes the recipients' company folder (as saving their attachments does)
         if (ok.length && remember) {
@@ -1068,18 +1125,15 @@ function ComposeForm({ prep, font, merge0 }: { prep: Prepared; font: ComposeFont
         alertBox(`"${f.name}" looks like a folder; folders can't be attached.`, "Attach File", "warning");
         continue;
       }
-      if (f.size > 25 * 1024 * 1024) {
-        alertBox(`"${f.name}" is too big to attach (Gmail takes up to 25 MB per message).`, "Attach File", "warning");
-        continue;
-      }
       try {
-        paths.push(await rpc<string>("mail.compose.stageDropped", { name: f.name, data: await base64Of(f) }));
+        // too large for Gmail: handed over in parts, then sent as a Google Drive link
+        paths.push(f.size > LINK_ABOVE ? await stageInParts(f) : await rpc<string>("mail.compose.stageDropped", { name: f.name, data: await base64Of(f) }));
       } catch (e) {
         errorBox(e);
       }
     }
-    // temporary copies: not for Attach File's Recent Items
-    void addPaths(paths, false);
+    // temporary copies: not for Attach File's Recent Items (one uploaded to Drive goes afterwards)
+    void addPaths(paths, false, true);
   };
   const hasFiles = (e: React.DragEvent) => e.dataTransfer.types.includes("Files");
 
@@ -1122,8 +1176,9 @@ function ComposeForm({ prep, font, merge0 }: { prep: Prepared; font: ComposeFont
     const imageExt = /.(png|jpe?g|gif|bmp|webp|tiff?)$/i;
     const item = (r: FileRow): MenuItem => ({
       label: r.name,
-      icon: imageExt.test(r.name) ? "picture" : "attach-file",
-      shortcut: r.folder.split(/[\\/]/).filter(Boolean).pop() ?? "",
+      // too large for Gmail: goes as a Google Drive link
+      icon: r.size > LINK_ABOVE ? "drive" : imageExt.test(r.name) ? "picture" : "attach-file",
+      shortcut: r.size > LINK_ABOVE ? `${formatSize(r.size)} · link` : (r.folder.split(/[\\/]/).filter(Boolean).pop() ?? ""),
       onClick: () => addPaths([r.path]),
     });
     const client = clientFolder.data ? (clientFiles.data ?? []) : [];
@@ -1157,11 +1212,23 @@ function ComposeForm({ prep, font, merge0 }: { prep: Prepared; font: ComposeFont
 
   const removeAttachments = (keys: string[]) => {
     if (!keys.length) return;
+    // an upload to Drive not finished yet is stopped
+    for (const a of attachments.filter((x) => keys.includes(x.key))) {
+      const id = a.spec.drive?.uploadId;
+      if (id && uploads[id]?.status !== "done") void driveApi.cancel(id).catch(() => {});
+    }
     setAttachments((a) => a.filter((x) => !keys.includes(x.key)));
     setSelAttach([]);
     markDirty();
   };
+  const driveLinkOf = (a: AttachItem) => a.spec.drive?.link ?? (a.spec.drive?.uploadId ? uploads[a.spec.drive.uploadId]?.link : null) ?? null;
   const openAttachment = (a: AttachItem) => {
+    // a Drive file with no local copy here (a draft from another computer): open it in Drive
+    if (!a.spec.path && a.spec.drive) {
+      const link = driveLinkOf(a);
+      if (link) void rpc("app.openUrl", { url: link }).catch(errorBox);
+      return;
+    }
     const src = a.spec.path ? { path: a.spec.path } : { attachmentId: a.spec.attachmentId };
     void openWithPrompt((confirmed) => composeApi.openAttachment({ ...src, confirmed }));
   };
@@ -2350,16 +2417,34 @@ function ComposeForm({ prep, font, merge0 }: { prep: Prepared; font: ComposeFont
                       onDoubleClick={() => openAttachment(a)}
                       onContextMenu={contextMenu(() => {
                         const keys = selAttach.includes(a.key) ? selAttach : [a.key];
+                        const up = a.spec.drive?.uploadId ? uploads[a.spec.drive.uploadId] : undefined;
+                        const link = driveLinkOf(a);
                         return [
                           { label: "Open", bold: true, disabled: keys.length > 1, onClick: () => openAttachment(a) },
+                          ...(up?.status === "failed" && keys.length === 1
+                            ? [{ label: "Retry Upload", icon: "send-receive", onClick: () => void driveApi.retry(up.id).catch(errorBox) } as MenuItem]
+                            : []),
+                          ...(link && keys.length === 1
+                            ? [{ label: "Open in Google Drive", icon: "drive", onClick: () => void rpc("app.openUrl", { url: link }).catch(errorBox) } as MenuItem]
+                            : []),
                           { type: "separator" },
                           { label: keys.length > 1 ? `Remove ${keys.length} Attachments` : "Remove", icon: "delete", onClick: () => removeAttachments(keys) },
                         ];
                       })}
                     >
-                      <CIcon name={fileIcon(a.name, a.mimeType)} />
+                      <CIcon name={a.spec.drive ? "drive" : fileIcon(a.name, a.mimeType)} />
                       <span className="cm-compose-att-name">{a.name}</span>
-                      {a.size > 0 && <span className="cm-compose-att-size">({formatSize(a.size)})</span>}
+                      {a.spec.drive ? (
+                        <span
+                          className={`cm-compose-att-size${uploads[a.spec.drive.uploadId ?? 0]?.status === "failed" ? " failed" : ""}`}
+                          title={uploads[a.spec.drive.uploadId ?? 0]?.error ?? "Sent as a Google Drive link: the recipients get access when you press Send."}
+                        >
+                          ({a.size > 0 ? `${formatSize(a.size)}, ` : ""}
+                          {uploadNote(uploads[a.spec.drive.uploadId ?? 0], a.spec.drive.uploadId)})
+                        </span>
+                      ) : (
+                        a.size > 0 && <span className="cm-compose-att-size">({formatSize(a.size)})</span>
+                      )}
                     </span>
                     {i < attachments.length - 1 && <span>; </span>}
                   </span>

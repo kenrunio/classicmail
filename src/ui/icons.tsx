@@ -387,6 +387,14 @@ export const ICONS: Record<string, JSX.Element> = {
       <path d="M8.5 10c.3-2 1.3-3 3-3s2.7 1 3 3z" fill="#3c76c4" />
     </>
   ),
+  // a file sent as a Google Drive link (the Drive triangle)
+  drive: (
+    <>
+      <path d="M5.6 2h4.8l4.6 8h-4.8z" fill="#fbbc04" />
+      <path d="M5.6 2 1 10l2.4 4.2L8 6.2z" fill="#0f9d58" />
+      <path d="M3.4 14.2h9.2L15 10H5.8z" fill="#4285f4" />
+    </>
+  ),
   "attach-file": (
     <>
       <path d="M3.5 1.5h6l3 3v10h-9z" fill="#fff" stroke="#5579b8" />

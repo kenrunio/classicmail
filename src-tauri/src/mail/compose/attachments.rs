@@ -40,6 +40,10 @@ pub async fn resolve(ctx: &Arc<AppCtx>, specs: &[AttachmentSpec]) -> anyhow::Res
     let mut out = Vec::new();
     let mut total = 0usize;
     for s in specs {
+        // sent as a Google Drive link (a card in the text, drive.rs), not attached
+        if s.drive.is_some() {
+            continue;
+        }
         let part = if let Some(path) = &s.path {
             let bytes = tokio::fs::read(path)
                 .await

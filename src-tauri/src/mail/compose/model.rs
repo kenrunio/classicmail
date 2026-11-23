@@ -53,6 +53,23 @@ pub struct AttachmentSpec {
     pub size: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<String>,
+    /// Too large for Gmail: sent as a Google Drive link instead of attached (compose/drive.rs).
+    /// `path` is then only the local file it came from.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drive: Option<DriveLink>,
+}
+
+/// A file sent as a Google Drive link: its upload (`drive_uploads.id`) on this computer, or,
+/// for a draft opened again elsewhere, the Drive file it became.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DriveLink {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upload_id: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub link: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]

@@ -22,6 +22,11 @@ pub struct Urls {
     pub calendar: String,
     pub people: String,
     pub tasks: String,
+    /// Google Drive (large attachments sent as links); `drive_upload` for resumable uploads
+    #[serde(default = "drive_default")]
+    pub drive: String,
+    #[serde(default = "drive_upload_default")]
+    pub drive_upload: String,
     pub token: String,
     pub auth: String,
     pub userinfo: String,
@@ -39,6 +44,8 @@ impl Urls {
             calendar: "https://www.googleapis.com/calendar/v3".into(),
             people: "https://people.googleapis.com/v1".into(),
             tasks: "https://tasks.googleapis.com/tasks/v1".into(),
+            drive: drive_default(),
+            drive_upload: drive_upload_default(),
             token: "https://oauth2.googleapis.com/token".into(),
             auth: "https://accounts.google.com/o/oauth2/v2/auth".into(),
             userinfo: "https://openidconnect.googleapis.com/v1/userinfo".into(),
@@ -54,6 +61,8 @@ impl Urls {
             calendar: format!("{base}/calendar/v3"),
             people: format!("{base}/v1"),
             tasks: format!("{base}/tasks/v1"),
+            drive: format!("{base}/drive/v3"),
+            drive_upload: format!("{base}/upload/drive/v3"),
             token: format!("{base}/token"),
             auth: format!("{base}/auth"),
             userinfo: format!("{base}/userinfo"),
@@ -61,6 +70,13 @@ impl Urls {
             imap: crate::fake_google::imap::url_for_base(base).unwrap_or_default(),
         }
     }
+}
+
+fn drive_default() -> String {
+    "https://www.googleapis.com/drive/v3".into()
+}
+fn drive_upload_default() -> String {
+    "https://www.googleapis.com/upload/drive/v3".into()
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -350,6 +366,46 @@ impl Api {
     }
 }
 
+impl Api {
+    /// One request with the account's token (refreshed once after a 401), answered as it comes:
+    /// no retries and no status check. For Drive's resumable uploads, whose answers (308 Resume
+    /// Incomplete, a `Location` / `Range` header) the JSON calls above can't show.
+    pub async fn raw(
+        &self,
+        method: Method,
+        url: &str,
+        headers: &[(&str, String)],
+        body: Option<Vec<u8>>,
+        timeout: Duration,
+    ) -> anyhow::Result<reqwest::Response> {
+        let mut refreshed = false;
+        loop {
+            let token = self.tokens.access_token(&self.http, refreshed).await?;
+            let mut req = self.http.request(method.clone(), url).bearer_auth(&token).timeout(timeout);
+            for (k, v) in headers {
+                req = req.header(*k, v.as_str());
+            }
+            if let Some(b) = &body {
+                req = req.body(b.clone());
+            }
+            let res = req.send().await.map_err(|e| ApiError::Network(error_chain(&e.without_url())))?;
+            if res.status() == StatusCode::UNAUTHORIZED && !refreshed {
+                refreshed = true;
+                continue;
+            }
+            return Ok(res);
+        }
+    }
+
+    /// A failed `raw` answer as an `ApiError` (Google's error JSON read from the body).
+    pub async fn raw_error(res: reqwest::Response) -> anyhow::Error {
+        let status = res.status().as_u16();
+        let text = res.text().await.unwrap_or_default();
+        let (message, reason) = parse_google_error(&text);
+        ApiError::Http { status, message, reason }.into()
+    }
+}
+
 /// A URL for the log: the API and the words of its path (`gmail users/me/messages/attachments`),
 /// without ids (a calendar id is often an address) or the query (a search).
 fn endpoint(urls: &Urls, url: &str) -> String {
@@ -359,6 +415,8 @@ fn endpoint(urls: &Urls, url: &str) -> String {
         ("calendar", &urls.calendar),
         ("tasks", &urls.tasks),
         ("people", &urls.people),
+        ("drive upload", &urls.drive_upload),
+        ("drive", &urls.drive),
     ];
     let (api, rest) = apis.into_iter().find_map(|(name, base)| Some((name, url.strip_prefix(base.as_str())?))).unwrap_or(("other", ""));
     let path = rest.split(['?', '#']).next().unwrap_or("");

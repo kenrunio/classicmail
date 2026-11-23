@@ -17,6 +17,7 @@ When you connect a Google account, you choose to give ClassicMail access to:
 | **Google Calendar** | Shows and edits your calendars, appointments and meetings, sends meeting invitations and replies, and shows reminders. |
 | **Google Contacts** (including "other contacts", read-only) | Shows and edits your contacts and groups, and suggests addresses as you type. |
 | **Google Tasks** | Shows and edits your tasks and To-Do Bar. |
+| **Google Drive: only the files ClassicMail creates** | Puts a file too large for e-mail in a ClassicMail folder in your Drive, sends a link to it, and gives the message's recipients access to it. ClassicMail cannot see any other file in your Drive. In Tools › Options › Large Files it shows the folder's size and can move old files to the Drive trash. |
 | **Basic profile** (name, e-mail address) | Identifies the account you signed in with. |
 
 ClassicMail uses this data only to provide the features you see in the program. It does not use

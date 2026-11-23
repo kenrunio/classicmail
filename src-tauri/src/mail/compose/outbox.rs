@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use super::{
-    attachments,
+    attachments, drive,
     mime::{self, Envelope},
     model::{Compose, Mode, valid_email},
     prepare::set_last_verb,
@@ -29,6 +29,15 @@ pub struct Built {
     pub text: String,
     /// (filename, mime, size) of real attachments
     pub files: Vec<(String, String, i64)>,
+    /// files sent as Google Drive links (drive.rs) — shared with the recipients before sending
+    pub links: Vec<drive::Linked>,
+}
+
+impl Built {
+    /// A Drive file is still uploading: the message is built again (with its link) when it goes.
+    pub fn uploading(&self) -> bool {
+        self.links.iter().any(|l| l.status != "done")
+    }
 }
 
 /// Build the message for a compose (resolves From, threading headers and attachments).
@@ -69,6 +78,10 @@ pub async fn build(ctx: &Arc<AppCtx>, c: &Compose) -> anyhow::Result<Built> {
         }
     }
     let parts = attachments::resolve(ctx, &c.attachments).await?;
+    // files too large for Gmail: a card with the Google Drive link instead
+    let links = drive::linked(ctx, &c.attachments).await?;
+    let sent = drive::with_cards(c, &links);
+    let c = &sent;
     let files: Vec<(String, String, i64)> =
         parts.iter().filter(|p| p.cid.is_none()).map(|p| (p.filename.clone(), p.mime.clone(), p.bytes.len() as i64)).collect();
     let message_id = mime::new_message_id(&from.email);
@@ -81,7 +94,7 @@ pub async fn build(ctx: &Arc<AppCtx>, c: &Compose) -> anyhow::Result<Built> {
     };
     let raw = mime::build(c, &env, parts)?;
     let text = c.text.clone().unwrap_or_else(|| mime::html_to_text(&c.html));
-    Ok(Built { raw, from, message_id, thread_id, in_reply_to, references, html: c.html.clone(), text, files })
+    Ok(Built { raw, from, message_id, thread_id, in_reply_to, references, html: c.html.clone(), text, files, links })
 }
 
 pub fn validate(c: &Compose) -> anyhow::Result<()> {
@@ -130,19 +143,25 @@ pub async fn queue_many(ctx: &Arc<AppCtx>, items: Vec<(Compose, i64)>) -> anyhow
     for (c, at) in items {
         validate(&c)?;
         let built = build(ctx, &c).await?;
+        if let drive::Readiness::Failed(m) = drive::readiness(&built.links) {
+            return Err(crate::user_err!("drive_upload", "{m} Try the upload again, or remove the file."));
+        }
         let send_at = if at > now { at } else { now };
-        rows.push((serde_json::to_string(&c)?, built.raw, built.thread_id, c.source_message_id, c.mode.verb(), c.draft_id, send_at));
+        // waiting for a Google Drive upload: built again, with the file's link, when it goes
+        let size = built.raw.len() as i64;
+        let raw = if built.uploading() { None } else { Some(built.raw) };
+        rows.push((serde_json::to_string(&c)?, raw, size, built.thread_id, c.source_message_id, c.mode.verb(), c.draft_id, send_at));
     }
-    let any_now = rows.iter().any(|r| r.6 <= now);
+    let any_now = rows.iter().any(|r| r.7 <= now);
     let (queued, folder) = ctx
         .db
         .write(move |db| {
             let tx = db.transaction()?;
             let mut out = Vec::with_capacity(rows.len());
-            for (compose_json, raw, thread_id, source, verb, draft_id, send_at) in rows {
+            for (compose_json, raw, size, thread_id, source, verb, draft_id, send_at) in rows {
                 tx.execute(
-                    "INSERT INTO outbox(account_id, compose_json, raw, thread_id, reply_to_message_id, verb, gmail_draft_id, status,                        attempts, send_at, created_at) VALUES (?1,?2,?3,?4,?5,?6,?7,'queued',0,?8,?9)",
-                    params![account_id, compose_json, raw, thread_id, source, verb, draft_id, send_at, now],
+                    "INSERT INTO outbox(account_id, compose_json, raw, thread_id, reply_to_message_id, verb, gmail_draft_id, status,                      attempts, send_at, created_at, size) VALUES (?1,?2,?3,?4,?5,?6,?7,'queued',0,?8,?9,?10)",
+                    params![account_id, compose_json, raw, thread_id, source, verb, draft_id, send_at, now, size],
                 )?;
                 out.push(Queued { outbox_id: tx.last_insert_rowid(), send_at });
                 // the draft leaves Drafts now (Outlook moves it to the Outbox); Gmail's copy goes once sent
@@ -287,6 +306,21 @@ pub async fn process(ctx: &Arc<AppCtx>, api: &Api) -> anyhow::Result<()> {
     let mut failures = Vec::new();
     let mut changed_folders = Vec::new();
     for (i, item) in due.into_iter().enumerate() {
+        // files sent as Google Drive links: wait for their uploads, then let the recipients open them
+        let compose: Compose = serde_json::from_str(&item.compose_json).unwrap_or_default();
+        let links = drive::linked(ctx, &compose.attachments).await?;
+        let mut not_ready = None;
+        match drive::readiness(&links) {
+            drive::Readiness::Ready => {}
+            drive::Readiness::Waiting(m) => {
+                let (id, m2) = (item.id, m.clone());
+                ctx.db
+                    .write(move |db| Ok(db.execute("UPDATE outbox SET last_error=?2 WHERE id=?1 AND status='queued'", params![id, m2])?))
+                    .await?;
+                continue;
+            }
+            drive::Readiness::Failed(m) => not_ready = Some(m),
+        }
         let claimed = ctx
             .db
             .write(move |db| {
@@ -300,7 +334,13 @@ pub async fn process(ctx: &Arc<AppCtx>, api: &Api) -> anyhow::Result<()> {
             continue;
         }
         ctx.events.status(account_id, "sync", &format!("Sending {} of {}…", i + 1, total), Some((i as f64 + 0.5) / total as f64));
-        let raw = if item.raw.is_empty() {
+        let shared = match not_ready {
+            Some(m) => Err(crate::user_err!("drive_upload", "{m}")),
+            None => drive::share(ctx, &compose, &links).await,
+        };
+        let raw = if let Err(e) = shared {
+            Err(e)
+        } else if item.raw.is_empty() {
             // a batch row (mail merge) is built now, from its compose
             let c: Compose = serde_json::from_str(&item.compose_json).unwrap_or_default();
             build(ctx, &c).await.map(|b| b.raw)

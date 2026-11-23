@@ -1,4 +1,4 @@
-//! In-process fake of the Google APIs we use (Gmail, Calendar, People, Tasks + OAuth endpoints),
+//! In-process fake of the Google APIs we use (Gmail, Calendar, People, Tasks, Drive + OAuth endpoints),
 //! for demo accounts, development and tests. Speaks Google's JSON shapes, paging and error format.
 //!
 //! Auth: `Authorization: Bearer demo-<email>` selects the mailbox. A user's data is seeded on first
@@ -8,6 +8,7 @@
 //! (Serialize + Deserialize + Default) and `seed(email, name) -> Store`.
 
 pub mod calendar;
+pub mod drive;
 pub mod gmail;
 pub mod gmail_compose;
 pub mod imap;
@@ -42,6 +43,8 @@ pub struct UserData {
     pub calendar: calendar::Store,
     pub people: people::Store,
     pub tasks: tasks::Store,
+    #[serde(default)]
+    pub drive: drive::Store,
 }
 
 impl FakeState {
@@ -59,6 +62,7 @@ impl FakeState {
                 calendar: calendar::seed(email, &name),
                 people: people::seed(email, &name),
                 tasks: tasks::seed(email, &name),
+                drive: Default::default(),
                 name,
             };
             self.users.insert(email.to_string(), data);
@@ -213,6 +217,7 @@ pub fn router(server: Shared) -> Router {
         .merge(calendar::routes())
         .merge(people::routes())
         .merge(tasks::routes())
+        .merge(drive::routes())
         .route("/auth", get(oauth_auth))
         .route("/token", post(oauth_token))
         .route("/revoke", post(oauth_revoke))

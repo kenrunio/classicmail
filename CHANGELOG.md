@@ -3,6 +3,31 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
+## Unreleased
+- **Large files go as Google Drive links**: Attach File now takes a file of any size. One too large
+  for Gmail (over 25 MB, or what doesn't fit beside the other attachments) is put in a
+  "ClassicMail" folder in your Google Drive and sent as a link. ClassicMail asks first ("Don't ask
+  me again" skips the question). The upload starts at once and shows its progress on the
+  attachment line. You can keep writing, press Send, or close the window: the message waits in the
+  Outbox until the upload is done. It carries on after a broken connection or a restart. The same
+  goes for a large file pasted (Ctrl+V) or dropped on the message, and Attach File's Recent Items
+  now list large files too, marked "link".
+- **Recipients get access when you press Send**: the file stays "only people with access", and
+  everyone the message goes to is given access. If a recipient has no Google account, anyone with
+  the link may open the file (or, if you prefer, it stays private: Options › Large Files).
+- **The message shows a card per file**: its name as the link, its size and "Google Drive", above
+  the quoted message. The plain-text version has the link written out. A saved draft keeps the
+  cards and opening it again turns them back into attachments.
+- **Tools › Options › Large Files**: the folder's name (renaming it renames the folder in Drive),
+  each account's folder with its number of files and size, your Drive's storage, Open in Drive,
+  and an option to move files older than 30 days to the Drive trash once a day, with Clean Up Now.
+  ClassicMail finds its folder again after it is reinstalled, and you can move the folder anywhere
+  in your Drive.
+- **One more sign-in per account**: this needs a new permission, Google Drive for the files
+  ClassicMail creates only. Until you sign in again (Tools › Account Settings), sending a large
+  file says so. Your own Google Cloud project also needs the Google Drive API turned on
+  (docs/google-setup.md, step 2).
+
 ## 1.24.12 — 2026-11-18
 - **One video link per meeting**: when a meeting of yours links Zoom or Teams in its location or
   notes and Google adds a Google Meet as well (as it does by itself to events created in Gmail /
