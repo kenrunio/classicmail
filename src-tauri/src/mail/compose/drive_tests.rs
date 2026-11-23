@@ -210,7 +210,7 @@ fn cards_round_trip() {
         },
     ];
     let c = Compose { html: format!("<p>See below.</p>{}><p>original</p></div>", super::prepare::ORIGINAL_MARKER), ..Default::default() };
-    let out = drive::with_cards(&c, &links);
+    let out = drive::with_cards(&c, &links, &[]);
     let card = out.html.find("data-cm-drives").unwrap();
     assert!(card < out.html.find("cm-original").unwrap(), "above the original");
     assert!(out.html.contains("href=\"https://drive.google.com/file/d/abc/view\""));
@@ -233,7 +233,60 @@ fn cards_round_trip() {
 
     // plain text: a line per file
     let plain = Compose { plain_text: true, text: Some("Hi".into()), ..Default::default() };
-    assert!(drive::with_cards(&plain, &links[..1]).text.unwrap().ends_with("https://drive.google.com/file/d/abc/view\r\n"));
+    assert!(drive::with_cards(&plain, &links[..1], &[]).text.unwrap().ends_with("https://drive.google.com/file/d/abc/view\r\n"));
+}
+
+fn one_link() -> Vec<Linked> {
+    vec![Linked {
+        name: "Deck.pdf".into(),
+        size: 30 * 1024 * 1024,
+        link: Some("https://drive.google.com/file/d/abc/view".into()),
+        upload_id: None,
+        file_id: Some("abc".into()),
+        account_id: None,
+        status: "done".into(),
+        error: None,
+    }]
+}
+
+/// The card goes under what you wrote, above your signature (found by its text, as the compose
+/// window edits it), in a new message and in a reply; with no signature found, at the end.
+#[test]
+fn cards_go_above_the_signature() {
+    let sigs = vec!["<div>Kenny Green</div><div>Duvz&nbsp;Software</div>".to_string(), "<p>Other sig</p>".to_string()];
+    // a new message as the compose window sends it
+    let html = "<html><body><div class=\"cm-reply\" style=\"font-size:11pt\"><p dir=\"auto\">Here is the deck.</p>\
+                <p dir=\"auto\">&nbsp;</p><div dir=\"auto\">Kenny Green<br>Duvz Software</div></div></body></html>";
+    let c = Compose { html: html.into(), ..Default::default() };
+    let out = drive::with_cards(&c, &one_link(), &sigs).html;
+    let (text, card, sig) = (out.find("Here is the deck").unwrap(), out.find("data-cm-drives").unwrap(), out.find("Kenny Green").unwrap());
+    assert!(text < card && card < sig, "{out}");
+    assert!(card < out.find("&nbsp;</p>").unwrap(), "the blank line stays with the signature");
+    let plain_text = drive::with_cards(&c, &one_link(), &sigs).text.unwrap();
+    assert!(plain_text.find("Deck.pdf").unwrap() < plain_text.find("Kenny Green").unwrap(), "{plain_text}");
+
+    // a reply: above the signature, and so above the original too
+    let reply = Compose {
+        html: format!("<p>Thanks!</p><p>Other sig</p>{}><p>Kenny Green wrote</p></div>", super::prepare::ORIGINAL_MARKER),
+        ..Default::default()
+    };
+    let out = drive::with_cards(&reply, &one_link(), &sigs).html;
+    assert!(out.find("Thanks!").unwrap() < out.find("data-cm-drives").unwrap());
+    assert!(out.find("data-cm-drives").unwrap() < out.find("Other sig").unwrap(), "{out}");
+
+    // no signature at the end (deleted, or changed): at the end, as before
+    let changed = Compose { html: "<p>Hi</p><p>Kenny</p>".into(), ..Default::default() };
+    assert!(drive::with_cards(&changed, &one_link(), &sigs).html.ends_with("<!--/cm-drives-->"));
+
+    // plain text: the line above the signature
+    let plain = Compose { plain_text: true, text: Some("Hi Sam,\nthe deck.\n\nKenny Green\nDuvz Software\n".into()), ..Default::default() };
+    let t = drive::with_cards(&plain, &one_link(), &sigs).text.unwrap();
+    assert!(
+        t.starts_with(
+            "Hi Sam,\nthe deck.\r\n\r\nDeck.pdf (30 MB, Google Drive): https://drive.google.com/file/d/abc/view\r\n\r\nKenny Green"
+        ),
+        "{t:?}"
+    );
 }
 
 /// A failed upload stops the message going (the user retries or removes it).

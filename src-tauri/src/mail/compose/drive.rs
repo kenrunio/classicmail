@@ -548,22 +548,32 @@ pub fn cards_text(links: &[Linked]) -> String {
         .join("\r\n")
 }
 
-/// The compose as sent: the Drive files as cards above the quoted original (at the end when
-/// there is none), and as lines with their links in the plain-text version.
-pub fn with_cards(c: &Compose, links: &[Linked]) -> Compose {
+/// The compose as sent: the Drive files as cards above the signature (one of `signatures`, the
+/// HTML of the user's signatures, found by its text at the end of what they wrote — as the compose
+/// window finds it when the From account changes), else above the quoted original, else at the
+/// end; and as lines with their links in the plain-text version (above the signature too).
+pub fn with_cards(c: &Compose, links: &[Linked], signatures: &[String]) -> Compose {
     let mut c = c.clone();
     if links.is_empty() {
         return c;
     }
     let lines = cards_text(links);
+    let sig_texts: Vec<String> = signatures.iter().map(|h| squash(&html_to_text(h))).filter(|t| !t.is_empty()).collect();
     if c.plain_text {
         let text = c.text.clone().unwrap_or_default();
-        c.text = Some(format!("{}\r\n\r\n{lines}\r\n", text.trim_end()));
+        let body = text.trim_end();
+        // the signature: the last lines whose text is one of the signatures (the earliest such line)
+        let cut = std::iter::once(0).chain(body.match_indices('\n').map(|(i, _)| i + 1)).find(|&i| sig_texts.contains(&squash(&body[i..])));
+        c.text = Some(match cut {
+            Some(i) => format!("{}\r\n\r\n{lines}\r\n\r\n{}\r\n", body[..i].trim_end(), body[i..].trim()),
+            None => format!("{body}\r\n\r\n{lines}\r\n"),
+        });
         return c;
     }
     let html = c.html.clone();
     let lower = html.to_ascii_lowercase();
-    let at = html.find(ORIGINAL_MARKER).or_else(|| lower.rfind("</body>")).unwrap_or(html.len());
+    let end = html.find(ORIGINAL_MARKER).or_else(|| lower.rfind("</body>")).unwrap_or(html.len());
+    let at = signature_start(&html[..end], &sig_texts).unwrap_or(end);
     let (before, after) = html.split_at(at);
     c.html = format!("{before}{}{after}", cards_html(links));
     if c.text.is_none() {
@@ -573,6 +583,27 @@ pub fn with_cards(c: &Compose, links: &[Linked]) -> Compose {
         c.text = Some(format!("{}\r\n\r\n{lines}\r\n\r\n{t_after}", t_before.trim_end()).trim_end().to_string() + "\r\n");
     }
     c
+}
+
+/// Text compared loosely: spaces (no-break and zero-width ones too) folded, ends trimmed.
+fn squash(t: &str) -> String {
+    t.replace(['\u{a0}', '\u{200b}'], " ").split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Where the signature begins in `html` (what the user wrote): the earliest block (`<p>`, `<div>`,
+/// `<table>`) from which the rest reads as one of the signatures — so blank lines above the
+/// signature stay with it and the cards go right under the user's own text.
+fn signature_start(html: &str, sig_texts: &[String]) -> Option<usize> {
+    if sig_texts.is_empty() {
+        return None;
+    }
+    static BLOCK: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r"(?i)<(p|div|table)[\s>]").unwrap());
+    let lower = html.to_ascii_lowercase();
+    let from = lower.find("<body").and_then(|b| lower[b..].find('>').map(|g| b + g + 1)).unwrap_or(0);
+    let starts: Vec<usize> = BLOCK.find_iter(&html[from..]).map(|m| from + m.start()).collect();
+    // only the last blocks can hold the signature: a long message isn't read over and over
+    let skip = starts.len().saturating_sub(60);
+    starts[skip..].iter().copied().find(|&i| sig_texts.contains(&squash(&html_to_text(&html[i..]))))
 }
 
 /// A draft opened again: its cards come out of the text and back as Drive attachments.

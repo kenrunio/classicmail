@@ -80,7 +80,19 @@ pub async fn build(ctx: &Arc<AppCtx>, c: &Compose) -> anyhow::Result<Built> {
     let parts = attachments::resolve(ctx, &c.attachments).await?;
     // files too large for Gmail: a card with the Google Drive link instead
     let links = drive::linked(ctx, &c.attachments).await?;
-    let sent = drive::with_cards(c, &links);
+    // the cards go above the signature: the user's signatures, to find it by its text
+    let signatures: Vec<String> = if links.is_empty() {
+        vec![]
+    } else {
+        ctx.db
+            .read(|db| {
+                let mut st = db.prepare("SELECT html FROM signatures")?;
+                let v = st.query_map([], |r| r.get(0))?.collect::<Result<Vec<String>, _>>()?;
+                Ok(v)
+            })
+            .await?
+    };
+    let sent = drive::with_cards(c, &links, &signatures);
     let c = &sent;
     let files: Vec<(String, String, i64)> =
         parts.iter().filter(|p| p.cid.is_none()).map(|p| (p.filename.clone(), p.mime.clone(), p.bytes.len() as i64)).collect();
