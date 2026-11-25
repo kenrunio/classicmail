@@ -3,6 +3,20 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
+## Unreleased
+- **Schedule with AI**: a new button next to Reply with AI (also in the Actions and right-click
+  menus and the message window) for an email where a call time has been agreed. AI reads the email
+  and a new meeting opens filled in: the agreed time (read in the sender's time zone, with both
+  times shown), everyone on the email (you left out, in company order A–Z), a short subject, the
+  video call link and the notes. Nothing is sent until you press Send. Before it opens,
+  ClassicMail checks the calendar the meeting goes into: if you already seem to be invited it
+  offers to open that meeting instead, and if something else is booked then it asks first. If your
+  video link is in another meeting at that time, or right before or after it (within "Gap between
+  meetings"), the backup link is used, or you are warned when both are in use.
+- **Options › Calendar**: Video call link, Backup video call link and a Meeting notes template for
+  Schedule with AI. `{call link}` is the link; anything else in `{ }` is filled in by AI, e.g.
+  "Call between {attendees with their positions and companies}".
+
 ## 1.24.13 — 2026-11-23
 - **Large files go as Google Drive links**: Attach File now takes a file of any size. One too large
   for Gmail (over 25 MB, or what doesn't fit beside the other attachments) is put in a

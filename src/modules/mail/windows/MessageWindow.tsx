@@ -6,7 +6,21 @@ import { mailApi } from "../../../api/mail";
 import { Ribbon, RibbonBig, RibbonSmall, RibbonStack, useHotkeys, type RibbonTab } from "../../../ui";
 import { MessageReader, useMessage } from "../MessageReader";
 import { MailDialogHost, messageOptionsDialog } from "../dialogs";
-import { archiveItems, compose, replyWithAi, createRule, deleteItems, findFromSender, followUpMenu, junkMenu, markJunk, markRead, moveToFolder, printView } from "../actions";
+import {
+  archiveItems,
+  compose,
+  replyWithAi,
+  scheduleWithAi,
+  createRule,
+  deleteItems,
+  findFromSender,
+  followUpMenu,
+  junkMenu,
+  markJunk,
+  markRead,
+  moveToFolder,
+  printView,
+} from "../actions";
 import { useMailSel } from "../store";
 import ArchiveMessageWindow from "../../archive/ArchiveMessageWindow";
 import "../mail.css";
@@ -91,6 +105,7 @@ function MailMessageWindow() {
             <>
               <RibbonBig icon="reply" label="Reply" onClick={() => compose("replyAll", id)} />
               <RibbonBig icon="reply-ai" label="Reply with AI" onClick={() => replyWithAi(id)} />
+              <RibbonBig icon="schedule-ai" label="Schedule with AI" onClick={() => scheduleWithAi(id)} />
               <RibbonBig icon="forward" label="Forward" onClick={() => compose("forward", id)} />
             </>
           ),

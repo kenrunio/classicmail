@@ -10,7 +10,20 @@ import { NavPane } from "./NavPane";
 import { MailView, selectedRows } from "./MailView";
 import { DEFAULT_ARRANGE, conversationsOn, folderKey, useMailSel, useMailUi } from "./store";
 import { arrangeMenu, conversationsMenuItem, layoutMenu } from "./MessageList";
-import { archiveItems, compose, replyWithAi, deleteItems, findFromSender, followUpMenu, junkMenu, markAllRead, markRead, moveToFolder, printMessage } from "./actions";
+import {
+  archiveItems,
+  compose,
+  replyWithAi,
+  scheduleWithAi,
+  deleteItems,
+  findFromSender,
+  followUpMenu,
+  junkMenu,
+  markAllRead,
+  markRead,
+  moveToFolder,
+  printMessage,
+} from "./actions";
 import { findFolder, useMailboxes } from "./folders";
 import { startMailMerge } from "./merge";
 import { useAiSettings } from "../ai/useTranslation";
@@ -69,6 +82,13 @@ function MailToolbar() {
         title={aiReady ? "Reply with a short draft written by AI" : "Set up AI in Tools › Options › AI"}
         disabled={!one || !aiReady}
         onClick={() => focused() && replyWithAi(focused()!)}
+      />
+      <TbButton
+        icon="schedule-ai"
+        label="Schedule with AI"
+        title={aiReady ? "Set up a meeting from this email: time, people, call link and notes" : "Set up AI in Tools › Options › AI"}
+        disabled={!one || !aiReady}
+        onClick={() => focused() && scheduleWithAi(focused()!)}
       />
       <TbButton icon="forward" label="Forward" title="Forward (Ctrl+F)" disabled={!one} onClick={() => focused() && compose("forward", focused()!)} />
       <TbSep />
@@ -176,6 +196,7 @@ function useMailMenus(): ModuleMenus {
     { label: "Reply", icon: "reply", shortcut: "Ctrl+R", disabled: !one(), onClick: () => one() && compose("replyAll", one()!) },
     { label: "Reply to All", icon: "reply-all", shortcut: "Ctrl+Shift+R", disabled: !one(), onClick: () => one() && compose("replyAll", one()!) },
     { label: "Reply with AI", icon: "reply-ai", disabled: !one(), onClick: () => one() && replyWithAi(one()!) },
+    { label: "Schedule with AI", icon: "schedule-ai", disabled: !one(), onClick: () => one() && scheduleWithAi(one()!) },
     { label: "Forward", icon: "forward", shortcut: "Ctrl+F", disabled: !one(), onClick: () => one() && compose("forward", one()!) },
     { type: "separator" },
     { label: "Follow Up", icon: "flag", disabled: !any(), submenu: followUpMenu(sel) },

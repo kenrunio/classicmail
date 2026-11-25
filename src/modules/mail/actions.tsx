@@ -58,6 +58,11 @@ export function replyWithAi(id: number) {
   return compose("replyAll", id, { aiDraft: "1" });
 }
 
+/** Schedule with AI: a new meeting filled in from the email (AppointmentWindow `scheduleFrom`). */
+export function scheduleWithAi(id: number) {
+  return openWindow("appointment", { scheduleFrom: id, meeting: 1 }, { title: "Untitled - Meeting" });
+}
+
 /** Open an item like a double-click: drafts → compose, Outbox items → compose, else the message window. */
 export function openItem(row: Pick<MessageRow, "id" | "isDraft" | "subject"> & { outboxId?: number | null }) {
   if (row.outboxId) return openWindow("compose", { mode: "draft", outboxId: row.outboxId }, { title: `${row.subject || "Untitled"} - Message` });
@@ -279,6 +284,7 @@ export function messageMenu(rows: MessageRow[]): MenuItem[] {
     { label: "Reply", icon: "reply", disabled: !one, onClick: () => one && compose("replyAll", one.id) },
     { label: "Reply to All", icon: "reply-all", disabled: !one, onClick: () => one && compose("replyAll", one.id) },
     { label: "Reply with AI", icon: "reply-ai", disabled: !one, onClick: () => one && replyWithAi(one.id) },
+    { label: "Schedule with AI", icon: "schedule-ai", disabled: !one, onClick: () => one && scheduleWithAi(one.id) },
     { label: "Forward", icon: "forward", disabled: !one, onClick: () => one && compose("forward", one.id) },
     { type: "separator" },
     { label: "Follow Up", icon: "flag", submenu: followUpMenu(ids) },

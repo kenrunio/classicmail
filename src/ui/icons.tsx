@@ -221,6 +221,14 @@ export const ICONS: Record<string, JSX.Element> = {
       <path d="M12.5 .8l.8 2.4 2.4.8-2.4.8-.8 2.4-.8-2.4-2.4-.8 2.4-.8z" fill="#8a5cf6" stroke="#5b35c4" strokeWidth=".4" />
     </>
   ),
+  "schedule-ai": (
+    <>
+      <rect x="1.5" y="3.5" width="11" height="11" fill="#fff" stroke="#5579b8" />
+      <rect x="1.5" y="3.5" width="11" height="2.6" fill="#cc3b3b" stroke="#a42424" />
+      <path d="M3.5 8.5h2M6.5 8.5h2M3.5 11h2M6.5 11h2M3.5 13h2" stroke="#7d93b5" />
+      <path d="M12.5 .8l.8 2.4 2.4.8-2.4.8-.8 2.4-.8-2.4-2.4-.8 2.4-.8z" fill="#8a5cf6" stroke="#5b35c4" strokeWidth=".4" />
+    </>
+  ),
   // translate: "A" and a Hebrew letter on two overlapping cards
   translate: (
     <>
