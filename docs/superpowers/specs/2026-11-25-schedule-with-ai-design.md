@@ -55,14 +55,14 @@ AI buttons: "Set up AI in Tools › Options › AI").
 2. If no agreed date and time can be found: message box "Couldn't find a meeting time in this
    email." with **Open anyway** (meeting window with people and notes filled, time = next free
    slot as for New Meeting) / **Cancel**.
-3. **Already invited?** If an event on his calendars overlaps the time and has at least one of
+3. **Already invited?** If an event on that calendar (step 6) overlaps the time and has at least one of
    the email's people on it (organizer or guest), it's probably the same meeting: message box
    "Looks like you're already invited: *Subject* (10:00–10:30)." — **Open it** (opens that event)
    / **Set up a new one anyway** (continues to the clash check, without listing this event again)
    / **Cancel**. *(Claude's call.)*
 4. **Clash check.** If Kenny has anything busy (same rule as `is_busy` in `ai/tools.rs`: timed,
-   not shown as free; tentative and unanswered invitations count) overlapping the time on any of
-   his calendars: message box
+   not shown as free; tentative and unanswered invitations count) overlapping the time on that
+   calendar: message box
    "You already have *Subject* (10:00–11:00) at that time. Set up this meeting anyway?" — lists
    every clash — **Yes** / **No**. No → stop.
 5. **Link check** (below) picks the link. (Also for the "Open anyway" slot of step 2.)
@@ -130,9 +130,9 @@ meeting number (`/j/<digits>`) is what's compared, so `pwd=` and different subdo
 Events looked at: timed (all-day ignored), not cancelled, not declined by him.
 
 **"His calendars"** — for the already-invited check, the clash check and the link check alike —
-means the calendars he **owns** in any of his accounts (Google access role `owner`). Shared,
-subscribed and holiday calendars are ignored, even if a colleague uses the same Zoom room.
-*(Kenny's decision.)*
+means **only the calendar the meeting is going into** (the organiser calendar, step 6). His other
+accounts' calendars, shared, subscribed and holiday calendars are all ignored, even if a colleague
+uses the same Zoom room. *(Kenny's decision.)*
 
 The main link is **taken** if an event using it overlaps the new meeting, or ends within
 "Gap between meetings" (Options, default 15 min) before it starts, or starts within that gap after
