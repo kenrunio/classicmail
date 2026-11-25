@@ -119,6 +119,10 @@ fn compose_answer(task: &str, v: &Value) -> Value {
                 })
                 .unwrap_or_default();
             let t = v["template"].as_str().unwrap_or("");
+            // a model that answers with the wrong key
+            if t.contains("FAKE-FAIL") {
+                return json!({ "notes": "x" });
+            }
             let re = regex::Regex::new(r"\{[^{}\n]*\}").unwrap();
             json!({ "text": re.replace_all(t, who.join(", ").as_str()).into_owned() })
         }
@@ -131,6 +135,11 @@ fn compose_answer(task: &str, v: &Value) -> Value {
 ///   name capitalised (none for gmail.com), their title "Title of <the part before @>".
 fn schedule_read(v: &Value) -> Value {
     let thread = v["thread"].as_str().unwrap_or("");
+    // a model that nulls out what it doesn't know
+    if thread.contains("FAKE-NULLS") {
+        return json!({ "found": null, "date": null, "yearStated": null, "start": null, "end": null, "timeZone": null,
+            "subject": null, "people": null });
+    }
     let re = regex::Regex::new(r"(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})-(\d{2}:\d{2}) ([A-Za-z_/]+)").unwrap();
     let people: Vec<Value> = v["people"]
         .as_array()

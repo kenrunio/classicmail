@@ -1,6 +1,7 @@
 // Schedule with AI (docs/superpowers/specs/2026-11-25-schedule-with-ai-design.md): a new meeting
 // prepared from an email by the back end (src-tauri/src/ai/schedule).
 import { rpc } from "./rpc";
+import { withAiConsent } from "./aiConsent";
 
 export interface SchedulePerson {
   name: string;
@@ -41,4 +42,5 @@ export interface Prepared {
   info: { icon: "info" | "warning"; text: string }[];
 }
 
-export const fromMessage = (messageId: number) => rpc<Prepared>("ai.schedule.fromMessage", { messageId });
+/** the AI notice is asked for first, as for the other AI buttons */
+export const fromMessage = (messageId: number) => withAiConsent(() => rpc<Prepared>("ai.schedule.fromMessage", { messageId }));

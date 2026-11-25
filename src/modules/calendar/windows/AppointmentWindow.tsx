@@ -122,6 +122,7 @@ export default function AppointmentWindow() {
 
   // Schedule with AI: the email is read, the already-invited / clash questions asked, then the form filled
   const [aiInfo, setAiInfo] = useState<{ icon: string; text: string }[]>([]);
+  const aiFilled = useRef(false);
   const giveUp = () => {
     closing.current = true;
     closeCurrentWindow();
@@ -159,8 +160,12 @@ export default function AppointmentWindow() {
         if (b !== "Yes") return giveUp();
       }
     }
-    const f = prefillForm(blank, p);
-    setForm(f);
+    // filled in on top of the form as it is now (the reminder already resolved, anything set
+    // meanwhile kept where the email doesn't say otherwise); `initial` stays the blank form, so
+    // closing asks whether to save
+    aiFilled.current = true;
+    let f = prefillForm(blank, p);
+    flushSync(() => setForm((cur) => (f = prefillForm(cur ?? blank, p))));
     showLists(f.attendees);
     if (f.timeZone !== localZone()) setShowZones(true);
     setAiInfo(p.info);
@@ -242,7 +247,8 @@ export default function AppointmentWindow() {
     if (form && form.reminder === -2) {
       const f = { ...form, reminder: settings.defaultReminderMinutes };
       setForm(f);
-      setInitial(JSON.stringify(f));
+      // a meeting Schedule with AI filled in stays a change (closing asks whether to save)
+      if (!aiFilled.current) setInitial(JSON.stringify(f));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form?.reminder, settings.defaultReminderMinutes]);

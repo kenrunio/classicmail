@@ -39,7 +39,7 @@ const DAY: i64 = 86_400_000;
 const READ_SYSTEM: &str = "You read an e-mail conversation (newest message first) for the user (\"me\") and find the meeting \
 the people on it have agreed to have. The time agreed in the newest message wins over earlier proposals; a time one side proposed \
 and the other accepted counts as agreed. If no single date and start time has been agreed, set \"found\" to false. \
-Give the date as YYYY-MM-DD (\"emailDate\" is the date of the newest message; set \"yearStated\" to false when the e-mail gives no year), \
+Give the date as YYYY-MM-DD (\"emailSent\" is when the newest message arrived, in the user's time zone; set \"yearStated\" to false when the e-mail gives no year), \
 start and end as 24-hour HH:MM in the time zone the time was written in, and that zone as an IANA name (\"America/New_York\"), \
 judged from an explicit zone (\"ET\", \"Israel time\"), the writer's signature, address, phone code or e-mail domain; \
 leave \"timeZone\" empty if you can't tell. Leave \"end\" empty if no end or length was given. \
@@ -65,17 +65,18 @@ struct Params {
 #[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
 struct ReadReply {
-    found: bool,
+    // every field may come back null from a model: Option, never a hard error
+    found: Option<bool>,
     #[serde(flatten)]
     time: AiTime,
     subject: Option<String>,
-    people: Vec<PersonFacts>,
+    people: Option<Vec<PersonFacts>>,
 }
 
 #[derive(Deserialize, Default)]
 #[serde(default)]
 struct PersonFacts {
-    email: String,
+    email: Option<String>,
     title: Option<String>,
     company: Option<String>,
 }
@@ -117,6 +118,12 @@ pub struct Prepared {
     pub already_invited: Vec<Busy>,
     pub clashes: Vec<Busy>,
     pub info: Vec<InfoLine>,
+}
+
+/// When the email arrived, in the user's time zone: "2026-12-08 00:30 (Asia/Jerusalem)".
+pub(crate) fn email_sent(ms: i64, tz: Tz) -> String {
+    use chrono::TimeZone;
+    tz.timestamp_millis_opt(ms).single().map(|d| format!("{} ({})", d.format("%Y-%m-%d %H:%M"), tz.name())).unwrap_or_default()
 }
 
 fn opts() -> CompleteOpts {
@@ -196,23 +203,23 @@ async fn from_message(ctx: Arc<AppCtx>, p: Params) -> anyhow::Result<Prepared> {
 
     // 1. the AI reads the email
     let mut people = people_on(&l.src, &l.own);
-    let email_date = chrono::DateTime::from_timestamp_millis(l.src.date).map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default();
     let prompt = json!({
         "task": "schedule.read",
-        "emailDate": email_date,
+        "emailSent": email_sent(l.src.date, l.user_tz),
         "people": people.iter().map(|p| json!({ "name": p.name, "email": p.email })).collect::<Vec<_>>(),
         "thread": thread_context(&l.src),
     })
     .to_string();
     let r: ReadReply = complete_json(&ctx, READ_SYSTEM, &prompt, opts()).await?;
-    for f in r.people {
-        if let Some(p) = people.iter_mut().find(|p| p.email.eq_ignore_ascii_case(f.email.trim())) {
+    for f in r.people.unwrap_or_default() {
+        let Some(email) = f.email else { continue };
+        if let Some(p) = people.iter_mut().find(|p| p.email.eq_ignore_ascii_case(email.trim())) {
             p.title = nonempty(f.title);
             p.company = nonempty(f.company);
         }
     }
     sort_people(&mut people);
-    let slot = if r.found { resolve(&r.time, l.src.date, l.user_tz, l.length) } else { None };
+    let slot = if r.found == Some(true) { resolve(&r.time, l.src.date, l.user_tz, l.length) } else { None };
     let subject = nonempty(r.subject).unwrap_or_else(|| l.src.subject.clone());
 
     // 2. the calendar: already invited, clashes, which call link
@@ -262,11 +269,21 @@ async fn from_message(ctx: Arc<AppCtx>, p: Params) -> anyhow::Result<Prepared> {
     let mut marked = mark_link(&template);
     if !instructions(&marked, &[]).is_empty() {
         let prompt = json!({ "task": "schedule.notes", "template": marked, "attendees": people, "subject": subject }).to_string();
-        let n: NotesReply = complete_json(&ctx, NOTES_SYSTEM, &prompt, opts()).await?;
-        let had_token = marked.contains(LINK_TOKEN);
-        marked = n.text;
-        if had_token && !marked.contains(LINK_TOKEN) {
-            marked = format!("{LINK_TOKEN}\n\n{marked}");
+        // a failed notes call keeps the meeting: the template stays, { } parts and all
+        match complete_json::<NotesReply>(&ctx, NOTES_SYSTEM, &prompt, opts()).await {
+            Ok(n) => {
+                let had_token = marked.contains(LINK_TOKEN);
+                marked = n.text;
+                if had_token && !marked.contains(LINK_TOKEN) {
+                    marked = format!("{LINK_TOKEN}\n\n{marked}");
+                }
+            }
+            Err(e) => {
+                log::debug!("schedule: notes: {}", crate::logging::err(&e));
+                info.push(InfoLine {
+                    icon: "warning", text: "AI couldn't fill in the notes — the parts in { } are left for you.".into()
+                });
+            }
         }
     }
     let notes = put_link(&marked, link.as_deref());

@@ -121,7 +121,7 @@ fn resolves_their_zone_to_ours() {
     let email = ms_utc(2026, 11, 25, 14, 45);
     let t = AiTime {
         date: Some("2026-12-08".into()),
-        year_stated: false,
+        year_stated: Some(false),
         start: Some("10:00".into()),
         end: Some("10:30".into()),
         time_zone: Some("America/New_York".into()),
@@ -138,7 +138,7 @@ fn missing_end_unknown_zone_and_yearless_date() {
     let email = ms_utc(2026, 12, 20, 9, 0);
     let t = AiTime {
         date: Some("2026-01-05".into()),
-        year_stated: false,
+        year_stated: Some(false),
         start: Some("09:00".into()),
         end: None,
         time_zone: Some("Mars/Base".into()),
@@ -152,7 +152,7 @@ fn missing_end_unknown_zone_and_yearless_date() {
     // an end not after the start → usual length
     let t = AiTime {
         date: Some("2027-01-05".into()),
-        year_stated: true,
+        year_stated: Some(true),
         start: Some("09:00".into()),
         end: Some("08:00".into()),
         time_zone: None,
@@ -168,7 +168,7 @@ fn missing_end_unknown_zone_and_yearless_date() {
 fn dst_weeks_use_the_stated_zone() {
     let t = |d: &str| AiTime {
         date: Some(d.into()),
-        year_stated: true,
+        year_stated: Some(true),
         start: Some("10:00".into()),
         end: None,
         time_zone: Some("America/New_York".into()),
@@ -347,4 +347,64 @@ async fn template_without_ai_parts_needs_no_second_call() {
     f.ctx.db.write(|c| set_setting(c, "calendar.meetingNotesTemplate", &"Join: {call link}")).await.unwrap();
     let r = f.prepare().await;
     assert_eq!(r["notes"], "Join: https://zoom.us/j/111");
+}
+
+// ---- final review fixes -----------------------------------------------------------------------
+
+#[test]
+fn twelve_hour_times_are_read_right_or_not_at_all() {
+    let t = |start: &str| AiTime {
+        date: Some("2026-12-08".into()),
+        year_stated: Some(true),
+        start: Some(start.into()),
+        end: None,
+        time_zone: Some("Asia/Jerusalem".into()),
+    };
+    let at = |start: &str| resolve(&t(start), 0, Jerusalem, 30).map(|s| s.start);
+    assert_eq!(at("3:30 PM"), Some(il(8, 15, 30)));
+    assert_eq!(at("12:15 am"), Some(il(8, 0, 15)));
+    assert_eq!(at("12:00 pm"), Some(il(8, 12, 0)));
+    assert_eq!(at("10am"), Some(il(8, 10, 0)));
+    assert_eq!(at("15:30"), Some(il(8, 15, 30)));
+    assert_eq!(at("10:00 xyz"), None);
+    assert_eq!(at("13:00 pm"), None);
+}
+
+#[test]
+fn a_missing_year_flag_keeps_the_year_given() {
+    // the AI left yearStated out: a date before the email stays as given (not moved a year on)
+    let t = AiTime { date: Some("2026-12-01".into()), year_stated: None, start: Some("10:00".into()), end: None, time_zone: None };
+    assert_eq!(resolve(&t, il(8, 9, 0), Jerusalem, 30).unwrap().start, il(1, 10, 0));
+}
+
+#[test]
+fn the_email_date_is_the_local_one() {
+    // 22:30 UTC on 7 Dec is already 8 Dec in Israel
+    assert_eq!(super::email_sent(ms_utc(2026, 12, 7, 22, 30), Jerusalem), "2026-12-08 00:30 (Asia/Jerusalem)");
+}
+
+#[tokio::test]
+async fn nulls_from_the_ai_are_not_an_error() {
+    let f = fixture("Some text FAKE-NULLS").await;
+    let r = f.prepare().await;
+    assert_eq!(r["found"], false);
+    assert_eq!(r["attendees"].as_array().unwrap().len(), 3);
+}
+
+#[tokio::test]
+async fn a_failed_notes_call_keeps_the_meeting() {
+    let f = fixture(THREAD).await;
+    f.ctx
+        .db
+        .write(|c| set_setting(c, "calendar.meetingNotesTemplate", &"{call link}\n\nCall between {attendees}. FAKE-FAIL"))
+        .await
+        .unwrap();
+    let r = f.prepare().await;
+    assert_eq!(r["found"], true);
+    assert_eq!(r["notes"], "https://zoom.us/j/111\n\nCall between {attendees}. FAKE-FAIL");
+    assert!(
+        r["info"].as_array().unwrap().iter().any(|l| l["icon"] == "warning" && l["text"].as_str().unwrap().contains("notes")),
+        "{}",
+        r["info"]
+    );
 }

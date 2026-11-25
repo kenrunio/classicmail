@@ -12,8 +12,8 @@ use crate::ai::tools::{fmt_time, local_ms};
 pub struct AiTime {
     /// YYYY-MM-DD
     pub date: Option<String>,
-    /// false when the email gave no year (the AI guessed one)
-    pub year_stated: bool,
+    /// false when the email gave no year (the AI guessed one); left out = the year is as given
+    pub year_stated: Option<bool>,
     /// HH:MM
     pub start: Option<String>,
     pub end: Option<String>,
@@ -28,9 +28,34 @@ pub(crate) struct Slot {
     pub zone_stated: bool,
 }
 
+/// "15:30", "3:30 PM", "10am" → minutes after midnight; anything else (other words after the time,
+/// "13:00 pm") → None, so a time the AI wrote oddly is never guessed at.
 fn minutes(hhmm: &str) -> Option<i64> {
-    let (h, m) = hhmm.trim().split_once(':')?;
-    let (h, m): (i64, i64) = (h.trim().parse().ok()?, m.trim().get(..2).unwrap_or(m.trim()).parse().ok()?);
+    let s = hhmm.trim().to_lowercase();
+    let (clock, half) = match s.strip_suffix("am").or_else(|| s.strip_suffix("a.m.")) {
+        Some(c) => (c.trim(), Some(false)),
+        None => match s.strip_suffix("pm").or_else(|| s.strip_suffix("p.m.")) {
+            Some(c) => (c.trim(), Some(true)),
+            None => (s.as_str(), None),
+        },
+    };
+    let (h, m) = clock.split_once(':').unwrap_or((clock, "0"));
+    let all_digits = |x: &str| !x.is_empty() && x.chars().all(|c| c.is_ascii_digit());
+    if !all_digits(h.trim()) || !all_digits(m.trim()) {
+        return None;
+    }
+    let (mut h, m): (i64, i64) = (h.trim().parse().ok()?, m.trim().parse().ok()?);
+    if let Some(pm) = half {
+        if !(1..=12).contains(&h) {
+            return None;
+        }
+        h = match (pm, h) {
+            (false, 12) => 0,
+            (true, 12) => 12,
+            (true, h) => h + 12,
+            (false, h) => h,
+        };
+    }
     ((0..24).contains(&h) && (0..60).contains(&m)).then_some(h * 60 + m)
 }
 
@@ -45,7 +70,7 @@ pub(crate) fn resolve(t: &AiTime, email_ms: i64, user_tz: Tz, length_min: i64) -
         Some(z) => (z, true),
         None => (user_tz, false),
     };
-    if !t.year_stated {
+    if t.year_stated == Some(false) {
         let sent = tz.timestamp_millis_opt(email_ms).single().map(|d| d.date_naive());
         if let Some(sent) = sent
             && date < sent
