@@ -280,6 +280,39 @@ function Preferences({ values, set }: Props) {
             <span>minutes</span>
           </span>
         </div>
+        <div className="cm-opt-row" title="Schedule with AI puts this link in the meeting">
+          <span style={{ whiteSpace: "nowrap" }}>Video call link:</span>
+          <input
+            className="cm-input"
+            style={{ flex: 1, minWidth: 0 }}
+            placeholder="https://zoom.us/j/…"
+            value={values["calendar.callLink"]}
+            onChange={(e) => set("calendar.callLink", e.target.value.trim())}
+          />
+        </div>
+        <div className="cm-opt-row" title="Used when the main link is in another meeting at that time, or right before or after it">
+          <span style={{ whiteSpace: "nowrap" }}>Backup video call link:</span>
+          <input
+            className="cm-input"
+            style={{ flex: 1, minWidth: 0 }}
+            placeholder="https://zoom.us/j/…"
+            value={values["calendar.backupCallLink"]}
+            onChange={(e) => set("calendar.backupCallLink", e.target.value.trim())}
+          />
+        </div>
+        <div className="cm-opt-row" style={{ alignItems: "flex-start" }}>
+          <span style={{ whiteSpace: "nowrap", paddingTop: 2 }}>Meeting notes:</span>
+          <textarea
+            className="cm-input"
+            rows={4}
+            style={{ flex: 1, minWidth: 0, resize: "vertical", fontFamily: "inherit" }}
+            value={values["calendar.meetingNotesTemplate"]}
+            onChange={(e) => set("calendar.meetingNotesTemplate", e.target.value)}
+          />
+        </div>
+        <div className="cm-opt-row cm-muted">
+          Used by Schedule with AI. Text in {"{ }"} is filled in by AI; {"{call link}"} is the video link above (or the backup when it&apos;s in use).
+        </div>
         <div className="cm-opt-row wrap">
           <span className="cm-opt-pair">
             <span>First day of week:</span>

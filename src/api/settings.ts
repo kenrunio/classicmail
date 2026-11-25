@@ -37,6 +37,10 @@ export const SETTING_DEFAULTS = {
   /** AI Review's meeting suggestions (src-tauri/src/ai/tools.rs): usual length and the gap kept around meetings */
   "calendar.meetingMinutes": 45,
   "calendar.meetingGapMinutes": 15,
+  /** Schedule with AI (src-tauri/src/ai/schedule): the video links and the notes template ({call link} = the link; other {…} filled by AI) */
+  "calendar.callLink": "",
+  "calendar.backupCallLink": "",
+  "calendar.meetingNotesTemplate": "{call link}\n\nCall between {attendees with their positions and companies}.",
   "calendar.weekStartsOn": 0,
   "calendar.defaultReminderMinutes": 15,
   "calendar.timeScale": 30,
