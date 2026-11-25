@@ -31,32 +31,8 @@ import { isHtmlNotes, notesText } from "../itemMail";
 import { firstUrl, hasUrl, Linkified, openLink } from "../links";
 import "../calendar.css";
 import { epochOf, localZone, wallOf, zoneList, zoneName } from "../timeZones";
-
-interface Form {
-  calendarId?: number;
-  summary: string;
-  location: string;
-  description: string;
-  allDay: boolean;
-  startDate: string;
-  startMin: number;
-  /** for all-day items: the inclusive last day, as Outlook shows it */
-  endDate: string;
-  endMin: number;
-  /** the To people, then the Cc ones (Google's optional attendees) */
-  attendees: Attendee[];
-  reminder: number;
-  busyStatus: BusyStatus;
-  isPrivate: boolean;
-  importance: "low" | "normal" | "high";
-  recurrence: string[] | null;
-  meeting: boolean;
-  categories: string[];
-  /** the zone the start / end times are shown and typed in (Time Zones); default your own */
-  timeZone: string;
-}
-
-type Attendee = Addr & { optional?: boolean };
+import { clashText, prefillForm, type Attendee, type Form } from "../schedule";
+import { fromMessage } from "../../../api/aiSchedule";
 
 /** The To and Cc boxes as the form's attendee list (someone in both: To). */
 function packAttendees(to: Recipient[], cc: Recipient[]): Attendee[] {
@@ -144,6 +120,52 @@ export default function AppointmentWindow() {
   const closing = useRef(false);
   const subjectRef = useRef<HTMLInputElement>(null);
 
+  // Schedule with AI: the email is read, the already-invited / clash questions asked, then the form filled
+  const [aiInfo, setAiInfo] = useState<{ icon: string; text: string }[]>([]);
+  const giveUp = () => {
+    closing.current = true;
+    closeCurrentWindow();
+  };
+  const scheduleFromEmail = async (messageId: number, blank: Form) => {
+    setAiInfo([{ icon: "send-receive", text: "Reading the email with AI…" }]);
+    let p;
+    try {
+      p = await fromMessage(messageId);
+    } catch (e) {
+      await errorBox(e);
+      return giveUp();
+    }
+    setAiInfo([]);
+    if (!p.found) {
+      const b = await messageBox({ title: "Schedule with AI", icon: "warning", text: "Couldn't find a meeting time in this email.", buttons: ["Open anyway", "Cancel"] });
+      if (b !== "Open anyway") return giveUp();
+    } else {
+      const inv = p.alreadyInvited[0];
+      if (inv) {
+        const b = await messageBox({
+          title: "Schedule with AI",
+          icon: "help",
+          text: `Looks like you're already invited: “${inv.subject}” (${inv.when}).`,
+          buttons: ["Open it", "Set up a new one anyway", "Cancel"],
+        });
+        if (b === "Open it") {
+          await openWindow("appointment", { id: inv.eventId, scope: "occurrence" }, { title: `${inv.subject} - Meeting`, label: `appointment-${inv.eventId}-occurrence` });
+          return giveUp();
+        }
+        if (b !== "Set up a new one anyway") return giveUp();
+      }
+      if (p.clashes.length) {
+        const b = await messageBox({ title: "Schedule with AI", icon: "warning", text: clashText(p.clashes), buttons: ["Yes", "No"] });
+        if (b !== "Yes") return giveUp();
+      }
+    }
+    const f = prefillForm(blank, p);
+    setForm(f);
+    showLists(f.attendees);
+    if (f.timeZone !== localZone()) setShowZones(true);
+    setAiInfo(p.info);
+  };
+
   // ---- load --------------------------------------------------------------------------------
   // like the last meeting window you closed, but never maximized (it opened hidden: windows.ts)
   useEffect(() => {
@@ -185,6 +207,8 @@ export default function AppointmentWindow() {
         }
         setForm(f);
         setInitial(JSON.stringify(f));
+        const from = Number(params.get("scheduleFrom"));
+        if (from) await scheduleFromEmail(from, f);
         return;
       }
       try {
@@ -691,6 +715,7 @@ export default function AppointmentWindow() {
               : "You declined this meeting.",
     });
   }
+  infoLines.push(...aiInfo);
   if (detail?.originalSummary) infoLines.push({ icon: "info", text: `You renamed this meeting on your calendar. The organizer's subject: "${detail.originalSummary}".` });
   if (detail?.readOnly) infoLines.push({ icon: "info", text: `This item is on the read-only calendar "${detail.calendarName}".` });
   if (form && !form.allDay && range && form.timeZone !== localZone()) {
