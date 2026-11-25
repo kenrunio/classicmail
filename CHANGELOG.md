@@ -3,7 +3,7 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
-## Unreleased
+## 1.24.14 — 2026-11-25
 - **Schedule with AI**: a new button next to Reply with AI (also in the Actions and right-click
   menus and the message window) for an email where a call time has been agreed. AI reads the email
   and a new meeting opens filled in: the agreed time (read in the sender's time zone, with both
