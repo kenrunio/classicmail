@@ -19,7 +19,7 @@ use serde_json::Value;
 // compiled once: notes are converted for every synced meeting on every pull
 static ANCHOR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?is)<a\s[^>]*?href\s*=\s*["']([^"']*)["'][^>]*>(.*?)</a\s*>"#).unwrap());
 static TAG: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<[^>]*>").unwrap());
-static LINK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"https?://[^\s<>\]\[]+").unwrap());
+pub(crate) static LINK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"https?://[^\s<>\]\[]+").unwrap());
 
 fn s<'a>(v: &'a Value, k: &str) -> &'a str {
     v.get(k).and_then(Value::as_str).unwrap_or("").trim()

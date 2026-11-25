@@ -20,6 +20,7 @@ pub mod compose;
 pub mod fake;
 pub mod models;
 pub mod provider;
+pub mod schedule;
 pub mod schema;
 pub mod tools;
 pub mod tooluse;

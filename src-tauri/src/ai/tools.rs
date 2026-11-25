@@ -147,7 +147,7 @@ impl Env {
     }
 }
 
-fn local_ms(tz: &Tz, d: NaiveDate, minutes: i64) -> i64 {
+pub(crate) fn local_ms(tz: &Tz, d: NaiveDate, minutes: i64) -> i64 {
     let dt = d.and_time(NaiveTime::MIN) + Duration::minutes(minutes);
     tz.from_local_datetime(&dt)
         .earliest()
@@ -173,7 +173,7 @@ pub fn user_tz(c: &Connection) -> Tz {
 fn fmt_day(tz: &Tz, ms: i64) -> String {
     tz.timestamp_millis_opt(ms).single().map(|t| t.format("%a %-d %b %Y").to_string()).unwrap_or_default()
 }
-fn fmt_time(tz: &Tz, ms: i64) -> String {
+pub(crate) fn fmt_time(tz: &Tz, ms: i64) -> String {
     tz.timestamp_millis_opt(ms).single().map(|t| t.format("%H:%M").to_string()).unwrap_or_default()
 }
 fn fmt_range(tz: &Tz, s: i64, e: i64) -> String {
@@ -264,7 +264,7 @@ fn pick(cals: &[Cal], name: Option<&str>, default_all: bool) -> anyhow::Result<(
 }
 
 /// Events of these calendars overlapping [from, to), declined and cancelled ones left out.
-fn events(c: &Connection, cal_ids: &[i64], from: i64, to: i64) -> anyhow::Result<Vec<EventRow>> {
+pub(crate) fn events(c: &Connection, cal_ids: &[i64], from: i64, to: i64) -> anyhow::Result<Vec<EventRow>> {
     if cal_ids.is_empty() {
         return Ok(vec![]);
     }
@@ -279,7 +279,7 @@ fn events(c: &Connection, cal_ids: &[i64], from: i64, to: i64) -> anyhow::Result
 }
 
 /// Busy time: timed events not shown as free (tentative / unanswered invitations included).
-fn is_busy(e: &EventRow) -> bool {
+pub(crate) fn is_busy(e: &EventRow) -> bool {
     !e.all_day && e.transparency != "transparent" && e.show_as.as_deref() != Some("free")
 }
 /// A whole day off: an all-day event shown as busy, or out of office.
