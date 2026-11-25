@@ -104,7 +104,57 @@ fn compose_answer(task: &str, v: &Value) -> Value {
             let from = thread.lines().next().unwrap_or("").trim_start_matches("From: ");
             json!({ "paragraphs": [format!("Thanks for your note ({from})."), "I'll get back to you by [date].\nBest,"] })
         }
+        "schedule.read" => schedule_read(v),
+        "schedule.notes" => {
+            let who: Vec<String> = v["attendees"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .map(|p| {
+                            let name = p["name"].as_str().filter(|n| !n.is_empty()).or(p["email"].as_str()).unwrap_or("");
+                            let extra: Vec<&str> = [p["title"].as_str(), p["company"].as_str()].into_iter().flatten().collect();
+                            if extra.is_empty() { name.to_string() } else { format!("{name} ({})", extra.join(", ")) }
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            let t = v["template"].as_str().unwrap_or("");
+            let re = regex::Regex::new(r"\{[^{}\n]*\}").unwrap();
+            json!({ "text": re.replace_all(t, who.join(", ").as_str()).into_owned() })
+        }
         _ => json!({}),
+    }
+}
+
+/// * `schedule.read` → the first (newest) `YYYY-MM-DD HH:MM-HH:MM Zone/Name` in the thread
+///   (`{"found":false}` when the thread says NO-TIME); each person's company is their domain's
+///   name capitalised (none for gmail.com), their title "Title of <the part before @>".
+fn schedule_read(v: &Value) -> Value {
+    let thread = v["thread"].as_str().unwrap_or("");
+    let re = regex::Regex::new(r"(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})-(\d{2}:\d{2}) ([A-Za-z_/]+)").unwrap();
+    let people: Vec<Value> = v["people"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|p| p["email"].as_str())
+                .map(|e| {
+                    let (local, domain) = e.split_once('@').unwrap_or((e, ""));
+                    let company = (domain != "gmail.com").then(|| {
+                        let n = domain.split('.').next().unwrap_or("");
+                        let mut c = n.chars();
+                        c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default()
+                    });
+                    json!({ "email": e, "title": format!("Title of {local}"), "company": company })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    match re.captures(thread).filter(|_| !thread.contains("NO-TIME")) {
+        Some(c) => json!({
+            "found": true, "date": &c[1], "yearStated": true, "start": &c[2], "end": &c[3], "timeZone": &c[4],
+            "subject": "Fake meeting", "people": people,
+        }),
+        None => json!({ "found": false, "subject": "Fake meeting", "people": people }),
     }
 }
 

@@ -69,7 +69,15 @@ pub(crate) fn pick_link(main: &str, backup: &str, events: &[EventRow], start: i6
     };
     let when = format!("“{}” ({}–{})", busy.summary, fmt_time(tz, busy.start_ms), fmt_time(tz, busy.end_ms));
     if !backup.is_empty() && taken_by(backup, events, start, end, gap_min).is_none() {
-        return LinkPick { link: Some(backup.into()), note: Some(format!("Using the backup video link: the main one is in {when}.")), warn: false };
+        return LinkPick {
+            link: Some(backup.into()),
+            note: Some(format!("Using the backup video link: the main one is in {when}.")),
+            warn: false,
+        };
     }
-    LinkPick { link: Some(main.into()), note: Some(format!("The video link is also used by {when}. Change it before sending.")), warn: true }
+    LinkPick {
+        link: Some(main.into()),
+        note: Some(format!("The video link is also used by {when}. Change it before sending.")),
+        warn: true,
+    }
 }

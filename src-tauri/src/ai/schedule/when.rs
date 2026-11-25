@@ -54,7 +54,8 @@ pub(crate) fn resolve(t: &AiTime, email_ms: i64, user_tz: Tz, length_min: i64) -
         }
     }
     let start = local_ms(&tz, date, start_min);
-    let end = t.end.as_deref().and_then(minutes).map(|m| local_ms(&tz, date, m)).filter(|e| *e > start).unwrap_or(start + length_min * 60_000);
+    let end =
+        t.end.as_deref().and_then(minutes).map(|m| local_ms(&tz, date, m)).filter(|e| *e > start).unwrap_or(start + length_min * 60_000);
     Some(Slot { start, end, tz, zone_stated })
 }
 

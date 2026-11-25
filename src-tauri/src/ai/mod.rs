@@ -54,6 +54,7 @@ pub fn register(r: &mut Registry) {
     r.add("ai.listModels", models::list_rpc);
     r.add("ai.translate", translate::translate_rpc);
     compose::register(r);
+    schedule::register(r);
 }
 
 // ---- key storage (keyring; in-memory in tests so they never touch Credential Manager) ---------
