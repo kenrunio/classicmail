@@ -123,6 +123,7 @@ export default function AppointmentWindow() {
   // Schedule with AI: the email is read, the already-invited / clash questions asked, then the form filled
   const [aiInfo, setAiInfo] = useState<{ icon: string; text: string }[]>([]);
   const aiFilled = useRef(false);
+  const scheduleStarted = useRef(false);
   const giveUp = () => {
     closing.current = true;
     closeCurrentWindow();
@@ -213,7 +214,11 @@ export default function AppointmentWindow() {
         setForm(f);
         setInitial(JSON.stringify(f));
         const from = Number(params.get("scheduleFrom"));
-        if (from) await scheduleFromEmail(from, f);
+        // once only: StrictMode's second run would read the email (and ask) twice
+        if (from && !scheduleStarted.current) {
+          scheduleStarted.current = true;
+          await scheduleFromEmail(from, f);
+        }
         return;
       }
       try {
