@@ -1,7 +1,7 @@
 use chrono::{NaiveDate, TimeZone};
 use chrono_tz::Asia::Jerusalem;
 
-use super::{links::*, people::*};
+use super::{links::*, people::*, when::*};
 use crate::calendar::model::EventRow;
 
 /// Israel time on 8 Dec 2026 → ms.
@@ -98,4 +98,45 @@ fn call_link_placeholder_is_the_apps() {
     assert!(t.contains("{attendees}"));
     assert_eq!(put_link(&t, Some("https://zoom.us/j/1")), "https://zoom.us/j/1\n\nCall between {attendees}. https://zoom.us/j/1");
     assert_eq!(put_link(&mark_link("{call link}\n\nHi"), None), "Hi");
+}
+
+fn ms_utc(y: i32, mo: u32, d: u32, hh: u32, mm: u32) -> i64 {
+    chrono::Utc.with_ymd_and_hms(y, mo, d, hh, mm, 0).unwrap().timestamp_millis()
+}
+
+#[test]
+fn resolves_their_zone_to_ours() {
+    let email = ms_utc(2026, 11, 25, 14, 45);
+    let t = AiTime { date: Some("2026-12-08".into()), year_stated: false, start: Some("10:00".into()), end: Some("10:30".into()), time_zone: Some("America/New_York".into()) };
+    let s = resolve(&t, email, Jerusalem, 45).unwrap();
+    assert_eq!(s.start, ms_utc(2026, 12, 8, 15, 0));
+    assert_eq!(s.end - s.start, 30 * 60_000);
+    assert!(s.zone_stated);
+    assert_eq!(zone_note(&s, Jerusalem), "Time read as 10:00 New York (17:00 your time).");
+}
+
+#[test]
+fn missing_end_unknown_zone_and_yearless_date() {
+    let email = ms_utc(2026, 12, 20, 9, 0);
+    let t = AiTime { date: Some("2026-01-05".into()), year_stated: false, start: Some("09:00".into()), end: None, time_zone: Some("Mars/Base".into()) };
+    let s = resolve(&t, email, Jerusalem, 45).unwrap();
+    assert_eq!(s.start, ms_utc(2027, 1, 5, 7, 0));
+    assert_eq!(s.end - s.start, 45 * 60_000);
+    assert!(!s.zone_stated);
+    assert_eq!(zone_note(&s, Jerusalem), "Time zone not stated in the email — read as your time (Jerusalem).");
+    assert!(resolve(&AiTime { start: Some("09:00".into()), ..Default::default() }, email, Jerusalem, 45).is_none());
+    // an end not after the start → usual length
+    let t = AiTime { date: Some("2027-01-05".into()), year_stated: true, start: Some("09:00".into()), end: Some("08:00".into()), time_zone: None };
+    let s = resolve(&t, email, Jerusalem, 45).unwrap();
+    assert_eq!(s.end - s.start, 45 * 60_000);
+    // same zone, stated → no note
+    let t = AiTime { time_zone: Some("Asia/Jerusalem".into()), ..t };
+    assert_eq!(zone_note(&resolve(&t, email, Jerusalem, 45).unwrap(), Jerusalem), "");
+}
+
+#[test]
+fn dst_weeks_use_the_stated_zone() {
+    let t = |d: &str| AiTime { date: Some(d.into()), year_stated: true, start: Some("10:00".into()), end: None, time_zone: Some("America/New_York".into()) };
+    assert_eq!(resolve(&t("2026-03-16"), 0, Jerusalem, 30).unwrap().start, ms_utc(2026, 3, 16, 14, 0));
+    assert_eq!(resolve(&t("2026-11-02"), 0, Jerusalem, 30).unwrap().start, ms_utc(2026, 11, 2, 15, 0));
 }

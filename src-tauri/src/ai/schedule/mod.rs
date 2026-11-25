@@ -3,6 +3,7 @@
 
 pub(crate) mod links;
 pub(crate) mod people;
+pub(crate) mod when;
 
 #[cfg(test)]
 mod tests;
