@@ -1,7 +1,7 @@
 use chrono::{NaiveDate, TimeZone};
 use chrono_tz::Asia::Jerusalem;
 
-use super::links::*;
+use super::{links::*, people::*};
 use crate::calendar::model::EventRow;
 
 /// Israel time on 8 Dec 2026 → ms.
@@ -72,4 +72,30 @@ fn pick_link_main_backup_warn_none() {
     let p = pick_link("", backup, &[], s, e, 15, &tz);
     assert_eq!(p.link, None);
     assert_eq!(p.note.as_deref(), Some("No video link set (Tools › Options › Calendar)."));
+}
+
+#[test]
+fn people_sorted_by_company_then_first_name() {
+    let p = |n: &str, e: &str, c: Option<&str>| Person { name: n.into(), email: e.into(), title: None, company: c.map(Into::into), optional: false };
+    let mut v = vec![
+        p("Kimberly Reitano", "kimberly.reitano@tlcap.com", Some("Throughline Capital")),
+        p("", "someone@gmail.com", None),
+        p("Moshe Eisenberg", "moshee@camtek.com", Some("Camtek")),
+        p("Earnestine Boles", "earnestine.boles@tlcap.com", Some("throughline capital")),
+        p("Ehud Helft", "ehud@ekgir.com", Some("EK Global IR")),
+    ];
+    sort_people(&mut v);
+    let order: Vec<&str> = v.iter().map(|x| x.email.as_str()).collect();
+    assert_eq!(order, ["moshee@camtek.com", "ehud@ekgir.com", "earnestine.boles@tlcap.com", "kimberly.reitano@tlcap.com", "someone@gmail.com"]);
+    assert_eq!(first_name(&v[4]), "someone");
+    assert_eq!(first_name(&v[0]), "Moshe");
+}
+
+#[test]
+fn call_link_placeholder_is_the_apps() {
+    let t = mark_link("{Call Link}\n\nCall between {attendees}. { call  link }");
+    assert!(!t.to_lowercase().contains("call link"));
+    assert!(t.contains("{attendees}"));
+    assert_eq!(put_link(&t, Some("https://zoom.us/j/1")), "https://zoom.us/j/1\n\nCall between {attendees}. https://zoom.us/j/1");
+    assert_eq!(put_link(&mark_link("{call link}\n\nHi"), None), "Hi");
 }

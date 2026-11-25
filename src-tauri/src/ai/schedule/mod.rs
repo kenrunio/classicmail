@@ -2,6 +2,7 @@
 //! filled in from an email — the agreed time, the people, the call link and the notes.
 
 pub(crate) mod links;
+pub(crate) mod people;
 
 #[cfg(test)]
 mod tests;
