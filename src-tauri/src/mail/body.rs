@@ -125,6 +125,9 @@ pub struct Invite {
     pub uid: String,
     pub summary: String,
     pub location: String,
+    /// the meeting's notes (kept for Add to Calendar; not sent to the reading pane)
+    #[serde(skip)]
+    pub description: String,
     pub start: Option<i64>,
     pub end: Option<i64>,
     pub all_day: bool,
@@ -187,8 +190,24 @@ pub fn parse_invite(ics: &str) -> Option<Invite> {
     let mut inv = Invite::default();
     let mut in_event = false;
     let mut seen_event = false;
+    // inside a component nested in the VEVENT (VALARM...): its UID / DESCRIPTION aren't the meeting's
+    let mut nested = 0;
     for line in unfolded.lines() {
         let line = line.trim_end_matches('\r');
+        if in_event && !line.eq_ignore_ascii_case("BEGIN:VEVENT") && !line.eq_ignore_ascii_case("END:VEVENT") {
+            let upper = line.to_ascii_uppercase();
+            if upper.starts_with("BEGIN:") {
+                nested += 1;
+                continue;
+            }
+            if upper.starts_with("END:") {
+                nested -= 1;
+                continue;
+            }
+            if nested > 0 {
+                continue;
+            }
+        }
         if line.eq_ignore_ascii_case("BEGIN:VEVENT") {
             if seen_event {
                 break; // first event only
@@ -214,6 +233,7 @@ pub fn parse_invite(ics: &str) -> Option<Invite> {
             "UID" => inv.uid = value.trim().to_string(),
             "SUMMARY" => inv.summary = ics_unescape(value),
             "LOCATION" => inv.location = ics_unescape(value),
+            "DESCRIPTION" => inv.description = ics_unescape(value),
             "DTSTART" => {
                 let (t, all_day) = ics_time(prop_params, value);
                 inv.start = t;
@@ -675,5 +695,30 @@ END:VCALENDAR
 ";
         let r = parse_invite(reply).unwrap();
         assert_eq!((r.method.as_str(), r.reply_status.as_str(), r.reply_from.as_str()), ("REPLY", "ACCEPTED", "Noa Shapiro"));
+    }
+
+    /// Apple Calendar's "share event" mail (METHOD:PUBLISH): the VEVENT holds a VALARM with a UID
+    /// and DESCRIPTION of its own, which must not replace the meeting's.
+    #[test]
+    fn a_shared_apple_event_keeps_its_own_uid() {
+        let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nMETHOD:PUBLISH\r\nPRODID:-//Apple Inc.//macOS 14.6//EN\r\n\
+BEGIN:VEVENT\r\nSUMMARY:פגישת היכרות: קשרי משקיעים בחו\"\r\n ל\r\n\
+ORGANIZER;CN=\"Dana Levi\";EMAIL=\"dana@harbor.example\":mailto:dana@\r\n harbor.example\r\n\
+UID:040000008200E00074C5B7101A82E008000000\r\n 00DEMO\r\n\
+DTSTART;TZID=Asia/Jerusalem:20261129T153000\r\nDTEND;TZID=Asia/Jerusalem:20261129T163000\r\n\
+LOCATION:מגדל הדוגמה קומה 7\\, תל אביב\r\nATTENDEE;CN=\"ehud@duvz.demo\";PARTSTAT=ACCEPTED:mailto:ehud@duvz.demo\r\n\
+DESCRIPTION:חדר ישיבות\\nקומה 7\\n\r\n\
+BEGIN:VALARM\r\nUID:605A7E2D-0000-4E10-9C0F-581462D41746\r\nTRIGGER:-PT10M\r\nDESCRIPTION:This is an event reminder\r\nACTION:DISPLAY\r\nEND:VALARM\r\n\
+END:VEVENT\r\nEND:VCALENDAR\r\n";
+        let i = parse_invite(ics).unwrap();
+        assert_eq!(i.method, "PUBLISH");
+        assert_eq!(i.uid, "040000008200E00074C5B7101A82E00800000000DEMO", "the alarm's UID is not the meeting's");
+        assert_eq!(i.summary, "פגישת היכרות: קשרי משקיעים בחו\"ל");
+        assert_eq!(i.location, "מגדל הדוגמה קומה 7, תל אביב");
+        assert_eq!(i.organizer_email, "dana@harbor.example");
+        assert_eq!(i.description, "חדר ישיבות\nקומה 7\n", "the alarm's description is not the meeting's");
+        // 15:30-16:30 Israel winter time (UTC+2)
+        assert_eq!(i.start, Some(1_795_959_000_000));
+        assert_eq!(i.end, Some(1_795_962_600_000));
     }
 }

@@ -890,3 +890,95 @@ async fn incremental_pull_refreshes_a_changed_series() {
     let moved = items.iter().find(|e| e["summary"] == "Desk rota (moved)").expect("the exception survives");
     assert_eq!(moved["start"], moved_to);
 }
+
+/// A colleague shares a meeting from Apple Calendar (METHOD:PUBLISH, you aren't an attendee): Google
+/// never puts it on your calendar, so Add to Calendar (or Accept) copies it there from the message.
+#[tokio::test]
+async fn a_shared_meeting_is_added_from_the_message() {
+    let (ctx, _g, a) = setup().await;
+    sync(&ctx, a).await;
+    let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nMETHOD:PUBLISH\r\nPRODID:-//Apple Inc.//macOS 14.6//EN\r\n\
+BEGIN:VEVENT\r\nSUMMARY:פגישת היכרות: קשרי משקיעים\r\n\
+ORGANIZER;CN=\"Dana Levi\":mailto:dana@harbor.example\r\nUID:shared-meeting-demo-1\r\n\
+DTSTART;TZID=Asia/Jerusalem:20261129T153000\r\nDTEND;TZID=Asia/Jerusalem:20261129T163000\r\n\
+LOCATION:מגדל הדוגמה קומה 7\\, תל אביב\r\nDESCRIPTION:חדר ישיבות\\n\r\n\
+ATTENDEE;CN=\"Ehud\";PARTSTAT=ACCEPTED:mailto:ehud@duvz.demo\r\n\
+BEGIN:VALARM\r\nUID:ALARM-UID-NOT-THE-MEETING\r\nTRIGGER:-PT10M\r\nACTION:DISPLAY\r\nEND:VALARM\r\n\
+END:VEVENT\r\nEND:VCALENDAR\r\n";
+    let msg: i64 = ctx
+        .db
+        .write(move |c| {
+            c.execute(
+                "INSERT INTO messages(account_id, gmail_id, internal_date, subject, from_email, ical_uid, body_state) \
+                 VALUES (?1, 'shared1', 0, 'shared', 'ehud@duvz.demo', 'shared-meeting-demo-1', 1)",
+                [a],
+            )?;
+            let id = c.last_insert_rowid();
+            c.execute("INSERT INTO message_bodies(message_id, calendar_ics, fetched_at) VALUES (?1, ?2, 0)", rusqlite::params![id, ics])?;
+            Ok(id)
+        })
+        .await
+        .unwrap();
+    let uid = "shared-meeting-demo-1";
+    // Google has nothing for it: Accept by UID alone finds nothing
+    let r = call(&ctx, "calendar.respondToInvite", json!({ "accountId": a, "icalUid": uid, "response": "accepted" })).await;
+    assert!(r["eventId"].is_null());
+    // Add to Calendar from the message
+    let r = call(&ctx, "calendar.addInvite", json!({ "messageId": msg })).await;
+    let id = r["eventId"].as_i64().expect("added");
+    let f = call(&ctx, "calendar.findByIcalUid", json!({ "accountId": a, "icalUid": uid })).await;
+    assert_eq!(f["id"], id);
+    assert_eq!(f["summary"], "פגישת היכרות: קשרי משקיעים");
+    assert_eq!(f["location"], "מגדל הדוגמה קומה 7, תל אביב");
+    assert_eq!(f["start"], 1_795_959_000_000_i64, "15:30 Israel time");
+    assert_eq!(f["end"], 1_795_962_600_000_i64);
+    // twice is still one meeting
+    let r = call(&ctx, "calendar.addInvite", json!({ "messageId": msg })).await;
+    assert_eq!(r["eventId"], id);
+    assert_eq!(count(&ctx, "SELECT COUNT(*) FROM events WHERE ical_uid='shared-meeting-demo-1'").await, 1);
+    // it reaches Google, under the meeting's own UID
+    sync(&ctx, a).await;
+    let (cal_gid, gid): (String, String) = ctx
+        .db
+        .read(move |c| {
+            Ok(c.query_row("SELECT c.gcal_id, e.gcal_id FROM events e JOIN calendars c ON c.id=e.calendar_id WHERE e.id=?1", [id], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })?)
+        })
+        .await
+        .unwrap();
+    let api = ctx.api(a).await.unwrap();
+    let remote = gcal::get_event(&api, &cal_gid, &gid).await.unwrap();
+    assert_eq!(remote.ical_uid.as_deref(), Some(uid));
+    assert_eq!(remote.description.as_deref(), Some("חדר ישיבות\n"));
+
+    // Accept on a meeting request Google never added does the same, given the message
+    let ics2 = ics.replace("METHOD:PUBLISH", "METHOD:REQUEST").replace("shared-meeting-demo-1", "shared-meeting-demo-2");
+    let msg2: i64 = ctx
+        .db
+        .write(move |c| {
+            c.execute(
+                "INSERT INTO messages(account_id, gmail_id, internal_date, subject, from_email, body_state) VALUES (?1, 'shared2', 0, 'req', 'ehud@duvz.demo', 1)",
+                [a],
+            )?;
+            let id = c.last_insert_rowid();
+            c.execute("INSERT INTO message_bodies(message_id, calendar_ics, fetched_at) VALUES (?1, ?2, 0)", rusqlite::params![id, ics2])?;
+            Ok(id)
+        })
+        .await
+        .unwrap();
+    let r = call(
+        &ctx,
+        "calendar.respondToInvite",
+        json!({ "accountId": a, "icalUid": "shared-meeting-demo-2", "response": "tentative", "messageId": msg2 }),
+    )
+    .await;
+    assert!(r["eventId"].is_number(), "{r}");
+    let f = call(&ctx, "calendar.findByIcalUid", json!({ "accountId": a, "icalUid": "shared-meeting-demo-2" })).await;
+    assert_eq!(f["busyStatus"], "tentative");
+    // ...but a Decline adds nothing
+    let r =
+        call(&ctx, "calendar.respondToInvite", json!({ "accountId": a, "icalUid": "nope@x", "response": "declined", "messageId": msg2 }))
+            .await;
+    assert!(r["eventId"].is_null());
+}

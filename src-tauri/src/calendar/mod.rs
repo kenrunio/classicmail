@@ -1,7 +1,7 @@
 //! Calendar domain: calendars + events (Google Calendar), local-first edits, reminders.
 //!
 //! rpc: calendar.listCalendars, setCalendarSelected, listEvents, search, listSeries, getEvent, createEvent,
-//! updateEvent, copyEvent, deleteEvent, respond, respondToInvite, resendInvite, findByIcalUid,
+//! updateEvent, copyEvent, deleteEvent, respond, respondToInvite, resendInvite, findByIcalUid, addInvite,
 //! listCategories, saveCategories, setEventCategories, setOwnSummary, findDuplicates, deleteEvents, moveToCalendar,
 //! dueReminders, dismissReminder, snoozeReminder. Events: `calendar.changed {accountId}`,
 //! `reminder.due {items}`.
@@ -56,6 +56,7 @@ pub fn register(r: &mut Registry) {
     r.add("calendar.respondToInvite", respond_to_invite);
     r.add("calendar.resendInvite", invite::resend_invite);
     r.add("calendar.findByIcalUid", find_by_ical_uid);
+    r.add("calendar.addInvite", add_invite);
     r.add("calendar.listCategories", organize::list_categories);
     r.add("calendar.saveCategories", organize::save_categories);
     r.add("calendar.setEventCategories", organize::set_event_categories);
@@ -424,6 +425,9 @@ pub struct EventInput {
     pub categories: Option<Vec<String>>,
     /// the time zone the start and end were set in (IANA, "America/New_York"); default the calendar's
     pub time_zone: Option<String>,
+    /// a meeting copied from an invitation keeps its iCalendar UID (not settable over rpc)
+    #[serde(skip)]
+    pub ical_uid: Option<String>,
 }
 
 pub(crate) fn add_days(d: &str, n: i64) -> String {
@@ -730,6 +734,7 @@ pub(crate) async fn create_event(ctx: Arc<AppCtx>, p: EventInput) -> anyhow::Res
                 ..Default::default()
             };
             apply_input(&mut row, &p, &cal, &email, &name, &categories::load(c)?);
+            row.ical_uid = p.ical_uid.clone();
             if let Some(rec) = p.recurrence.as_ref().filter(|r| !r.is_empty()) {
                 for line in rec.iter().filter(|l| l.starts_with("RRULE")) {
                     rrule::Rule::parse(line).map_err(|e| crate::user_err!("bad_recurrence", "{e}"))?;
@@ -1123,6 +1128,8 @@ struct InviteParams {
     response: String,
     comment: Option<String>,
     send_response: Option<bool>,
+    /// the invitation's message: when the meeting isn't on the calendar, Accept / Tentative copy it there
+    message_id: Option<i64>,
 }
 
 #[derive(Serialize)]
@@ -1162,7 +1169,14 @@ async fn respond_to_invite(ctx: Arc<AppCtx>, p: InviteParams) -> anyhow::Result<
             found = ctx.db.read(move |c| find_ical_row(c, aid, &uid)).await?;
         }
     }
-    let Some(row) = found else { return Ok(InviteResult { event_id: None }) };
+    let Some(row) = found else {
+        // Google didn't put it on the calendar (a shared event, a forwarded invitation): copy it there
+        let event_id = match p.message_id {
+            Some(mid) if p.response != "declined" => add_from_message(&ctx, mid, &p.response).await?,
+            _ => None,
+        };
+        return Ok(InviteResult { event_id });
+    };
     let id = row.id;
     let resp = p.response.clone();
     let (account_id, _) =
@@ -1183,6 +1197,76 @@ async fn respond_to_invite(ctx: Arc<AppCtx>, p: InviteParams) -> anyhow::Result<
         })
         .await?;
     Ok(InviteResult { event_id: shown.or(Some(id)) })
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AddInviteParams {
+    message_id: i64,
+}
+
+/// Add to Calendar: copy the meeting in a message's invitation to its account's main calendar
+/// (Apple's "share event" mail, or an invitation Google didn't add because it was forwarded).
+async fn add_invite(ctx: Arc<AppCtx>, p: AddInviteParams) -> anyhow::Result<InviteResult> {
+    Ok(InviteResult { event_id: add_from_message(&ctx, p.message_id, "accepted").await? })
+}
+
+/// The meeting in a message's iCalendar part, put on the calendar unless it's there already.
+/// No reply goes to the organizer: you're not on their guest list.
+async fn add_from_message(ctx: &Arc<AppCtx>, message_id: i64, response: &str) -> anyhow::Result<Option<i64>> {
+    let found = ctx
+        .db
+        .read(move |c| {
+            Ok(c.query_row(
+                "SELECT m.account_id, b.calendar_ics FROM messages m JOIN message_bodies b ON b.message_id=m.id WHERE m.id=?1",
+                [message_id],
+                |r| Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?)),
+            )
+            .optional()?)
+        })
+        .await?;
+    let Some((account_id, Some(ics))) = found else { return Ok(None) };
+    let Some(inv) = crate::mail::body::parse_invite(&ics) else { return Ok(None) };
+    let Some(start) = inv.start else { return Ok(None) };
+    let uid = inv.uid.clone();
+    let (existing, cal_id) = ctx
+        .db
+        .read(move |c| {
+            let existing = find_ical_row(c, account_id, &uid)?.map(|r| r.id);
+            let cal = c
+                .query_row(
+                    "SELECT id FROM calendars WHERE account_id=?1 AND access_role IN ('owner','writer') ORDER BY is_primary DESC, position LIMIT 1",
+                    [account_id],
+                    |r| r.get::<_, i64>(0),
+                )
+                .optional()?;
+            Ok((existing, cal))
+        })
+        .await?;
+    if existing.is_some() {
+        return Ok(existing);
+    }
+    let Some(cal_id) = cal_id else {
+        return Err(crate::user_err!("no_calendar", "There is no calendar to save this item in yet. Wait for Send/Receive to finish."));
+    };
+    // an all-day date is midnight UTC: keep the date itself
+    let date = |ms: i64| chrono::DateTime::from_timestamp_millis(ms).map(|d| d.format("%Y-%m-%d").to_string());
+    let input = EventInput {
+        calendar_id: Some(cal_id),
+        summary: Some(inv.summary),
+        location: Some(inv.location),
+        description: Some(inv.description),
+        start: Some(start),
+        end: Some(inv.end.unwrap_or(start + 30 * 60_000)),
+        all_day: Some(inv.all_day),
+        start_date: if inv.all_day { date(start) } else { None },
+        end_date: if inv.all_day { inv.end.and_then(date) } else { None },
+        busy_status: (response == "tentative").then(|| "tentative".to_string()),
+        send_updates: Some(false),
+        ical_uid: Some(inv.uid),
+        ..Default::default()
+    };
+    Ok(Some(create_event(ctx.clone(), input).await?.ev.id))
 }
 
 #[derive(Deserialize)]

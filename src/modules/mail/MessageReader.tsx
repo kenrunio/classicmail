@@ -326,9 +326,21 @@ function InviteBar({ m, invite, calendar, onCalendar }: { m: MessageView; invite
   const respond = async (response: "accepted" | "tentative" | "declined", sendResponse = true, comment?: string) => {
     setBusy(true);
     try {
-      await rpc("calendar.respondToInvite", { accountId: m.accountId, icalUid: invite.uid, response, sendResponse, ...(comment ? { comment } : {}) });
-      setAnswered(response);
+      const r = await rpc<{ eventId: number | null }>("calendar.respondToInvite", {
+        accountId: m.accountId,
+        icalUid: invite.uid,
+        response,
+        sendResponse,
+        messageId: m.id,
+        ...(comment ? { comment } : {}),
+      });
       found.refetch();
+      if (r.eventId == null && response !== "declined") {
+        // keep the message: nothing was put on the calendar
+        alertBox("This meeting couldn't be added to your calendar.", "ClassicMail", "info");
+        return;
+      }
+      setAnswered(response);
       // Outlook: "Delete meeting request from Inbox when responding" (on by default)
       const del = await rpc<boolean | null>("settings.get", { key: "mail.deleteInviteOnResponse" }).catch(() => null);
       if (del !== false && !m.folders.some((f) => f.role === "trash")) {
@@ -369,12 +381,36 @@ function InviteBar({ m, invite, calendar, onCalendar }: { m: MessageView; invite
       <Icon name="chevron-down" size={8} />
     </button>
   );
+  // a shared event (Apple Calendar's METHOD:PUBLISH) has no guest list to answer: Outlook offers
+  // Add to Calendar, and Google never puts it on the calendar by itself
+  const shared = invite.method === "PUBLISH";
+  const addToCalendar = async () => {
+    setBusy(true);
+    try {
+      const r = await rpc<{ eventId: number | null }>("calendar.addInvite", { messageId: m.id });
+      found.refetch();
+      if (r.eventId == null) alertBox("This meeting couldn't be added to your calendar.", "ClassicMail", "info");
+    } catch (e) {
+      alertBox(e instanceof Error ? e.message : String(e), "ClassicMail", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <div className="cm-mail-invite">
       <div className="cm-mail-invite-buttons">
-        {btn("accepted", "accept", "Accept")}
-        {btn("tentative", "tentative", "Tentative")}
-        {btn("declined", "decline", "Decline")}
+        {shared ? (
+          <button className="cm-mail-invite-btn" disabled={busy || !!found.data} onClick={addToCalendar}>
+            <Icon name="accept" size={16} />
+            Add to Calendar
+          </button>
+        ) : (
+          <>
+            {btn("accepted", "accept", "Accept")}
+            {btn("tentative", "tentative", "Tentative")}
+            {btn("declined", "decline", "Decline")}
+          </>
+        )}
         {invite.start && (
           <>
             <span className="cm-mail-invite-sep" />
@@ -392,15 +428,19 @@ function InviteBar({ m, invite, calendar, onCalendar }: { m: MessageView; invite
       <div className="cm-mail-infobar">
         <Icon name="meeting-request" size={14} />
         <span>
-          {my === "accepted"
-            ? "You have accepted this meeting."
-            : my === "tentative"
-              ? "You have tentatively accepted this meeting."
-              : my === "declined"
-                ? "You have declined this meeting."
-                : found.data
-                  ? "Please respond. This meeting is on your calendar."
-                  : "Please respond."}
+          {shared
+            ? found.data
+              ? "This meeting is on your calendar."
+              : "This meeting isn't on your calendar."
+            : my === "accepted"
+              ? "You have accepted this meeting."
+              : my === "tentative"
+                ? "You have tentatively accepted this meeting."
+                : my === "declined"
+                  ? "You have declined this meeting."
+                  : found.data
+                    ? "Please respond. This meeting is on your calendar."
+                    : "Please respond."}
         </span>
       </div>
       <InviteFields invite={invite} />
