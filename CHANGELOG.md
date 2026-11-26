@@ -3,7 +3,7 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
-## Unreleased
+## 1.24.16 — 2026-11-26
 - **Schedule with AI** chooses who is on the call: AI reads the whole email conversation, not just
   the newest message, and works out who the call is between. Someone the emails only name (the
   company's CFO, say) is found from your earlier meetings about the same company, and a colleague
