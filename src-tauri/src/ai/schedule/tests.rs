@@ -408,3 +408,83 @@ async fn a_failed_notes_call_keeps_the_meeting() {
         r["info"]
     );
 }
+
+// ---- who is on the call: the whole conversation, and people from earlier meetings -------------
+
+/// A broker asks Eli (IR, a colleague) for a call with Orion Tech's management; Kenny answers
+/// that Dana (Orion's CFO, never on the emails) is travelling, and later agrees a time. The newest
+/// message alone names nobody but the broker.
+#[tokio::test]
+async fn the_ai_picks_who_is_on_the_call_from_the_whole_conversation() {
+    let f = fixture("2026-12-07 10:00-10:45 Asia/Jerusalem works. I'll send a calendar invite. FAKE-PICK").await;
+    let (msg, cal) = (f.msg, f.cal_a);
+    f.ctx
+        .db
+        .write(move |c| {
+            let acct: i64 = c.query_row("SELECT account_id FROM messages WHERE id=?1", [msg], |r| r.get(0))?;
+            // the newest message: Kenny to the broker, Eli on Cc
+            c.execute(
+                "UPDATE messages SET subject='RE: Request for conference call with Orion Tech', from_name='Kenny Green', \
+                 from_email='kenny@duvz.demo', to_json=?2, cc_json=?3 WHERE id=?1",
+                rusqlite::params![
+                    msg,
+                    r#"[{"name":"Mei Lin","email":"mei.lin@harborsec.example"}]"#,
+                    r#"[{"name":"Eli Ross","email":"eli@duvz.demo"}]"#
+                ],
+            )?;
+            let older = |gid: &str, at: i64, from: &str, to: &str, cc: &str, text: &str| -> anyhow::Result<()> {
+                c.execute(
+                    "INSERT INTO messages(account_id, gmail_id, thread_id, internal_date, sent_date, subject, from_name, from_email, to_json, cc_json, body_state) \
+                     VALUES (?1,?2,'t1',?3,?3,'Request for conference call with Orion Tech','',?4,?5,?6,1)",
+                    rusqlite::params![acct, gid, at, from, to, cc],
+                )?;
+                c.execute(
+                    "INSERT INTO message_bodies(message_id, text, fetched_at) VALUES (?1, ?2, 0)",
+                    rusqlite::params![c.last_insert_rowid(), text],
+                )?;
+                Ok(())
+            };
+            older(
+                "g0",
+                ms_utc(2026, 11, 4, 8, 0),
+                "mei.lin@harborsec.example",
+                r#"[{"name":"Eli Ross","email":"eli@duvz.demo"}]"#,
+                "[]",
+                "Our investors would like another call with Orion Tech's management.",
+            )?;
+            older(
+                "g01",
+                ms_utc(2026, 11, 9, 15, 0),
+                "kenny@duvz.demo",
+                r#"[{"name":"Mei Lin","email":"mei.lin@harborsec.example"}]"#,
+                r#"[{"name":"Eli Ross","email":"eli@duvz.demo"}]"#,
+                "Sorry, Dana is travelling next week.",
+            )?;
+            // earlier meetings: one on Orion Tech (Dana, the CFO, is on it), one that isn't
+            let ev = |title: &str, at: i64, attendees: &str| -> anyhow::Result<()> {
+                c.execute(
+                    "INSERT INTO events(account_id, calendar_id, summary, start_ms, end_ms, attendees) VALUES (?1,?2,?3,?4,?5,?6)",
+                    rusqlite::params![acct, cal, title, at, at + 1_800_000, attendees],
+                )?;
+                Ok(())
+            };
+            ev(
+                "Orion Tech & Blue Fund",
+                ms_utc(2026, 11, 2, 9, 0),
+                r#"[{"email":"dana@oriontech.example","displayName":"'Dana Cohen'"},{"email":"eli@duvz.demo"},{"email":"kenny@duvz.demo","self":true}]"#,
+            )?;
+            ev("Dentist checkup", ms_utc(2026, 11, 3, 9, 0), r#"[{"email":"dana.katz@clinic.example","displayName":"Dana Katz"}]"#)?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    let r = f.prepare().await;
+    let who: Vec<(&str, bool)> =
+        r["attendees"].as_array().unwrap().iter().map(|a| (a["email"].as_str().unwrap(), a["optional"].as_bool().unwrap())).collect();
+    // Dana is found from the earlier Orion meeting (named only in an older email); Eli, on Cc, is
+    // still a full attendee; Dana Katz (no Orion meeting) and an address the AI made up are not
+    assert_eq!(who, [("eli@duvz.demo", false), ("mei.lin@harborsec.example", false), ("dana@oriontech.example", false)]);
+    assert_eq!(r["attendees"][2]["name"], "Dana Cohen");
+    // who the call is between goes to the notes
+    assert!(r["notes"].as_str().unwrap().contains("Call between Orion Tech management and Harborsec's investors"), "{}", r["notes"]);
+}

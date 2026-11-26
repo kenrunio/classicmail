@@ -124,7 +124,9 @@ fn compose_answer(task: &str, v: &Value) -> Value {
                 return json!({ "notes": "x" });
             }
             let re = regex::Regex::new(r"\{[^{}\n]*\}").unwrap();
-            json!({ "text": re.replace_all(t, who.join(", ").as_str()).into_owned() })
+            // who the call is between, when the reading step said
+            let fill = v["between"].as_str().filter(|b| !b.is_empty()).map(str::to_string).unwrap_or_else(|| who.join(", "));
+            json!({ "text": re.replace_all(t, fill.as_str()).into_owned() })
         }
         _ => json!({}),
     }
@@ -158,13 +160,35 @@ fn schedule_read(v: &Value) -> Value {
                 .collect()
         })
         .unwrap_or_default();
-    match re.captures(thread).filter(|_| !thread.contains("NO-TIME")) {
+    let mut out = match re.captures(thread).filter(|_| !thread.contains("NO-TIME")) {
         Some(c) => json!({
             "found": true, "date": &c[1], "yearStated": true, "start": &c[2], "end": &c[3], "timeZone": &c[4],
             "subject": "Fake meeting", "people": people,
         }),
         None => json!({ "found": false, "subject": "Fake meeting", "people": people }),
+    };
+    if thread.contains("FAKE-PICK") {
+        out["attendees"] = json!(fake_pick(v, thread));
+        out["between"] = json!("Orion Tech management and Harborsec's investors");
     }
+    out
+}
+
+/// `FAKE-PICK`: everyone on the emails, the known people whose first name is in the conversation,
+/// all required, and an address no one gave (which the app must drop).
+fn fake_pick(v: &Value, thread: &str) -> Vec<Value> {
+    let named = |p: &Value| {
+        let first = p["name"].as_str().unwrap_or("").split_whitespace().next().unwrap_or("").to_string();
+        !first.is_empty() && thread.split(|c: char| !c.is_alphanumeric()).any(|w| w == first)
+    };
+    let on_emails = v["people"].as_array().cloned().unwrap_or_default();
+    let known = v["knownPeople"].as_array().cloned().unwrap_or_default();
+    on_emails
+        .iter()
+        .chain(known.iter().filter(|p| named(p)))
+        .map(|p| json!({ "email": p["email"], "optional": false }))
+        .chain([json!({ "email": "ghost@nowhere.example", "optional": false })])
+        .collect()
 }
 
 /// Insert `prefix` after every opening `<p…>` tag.

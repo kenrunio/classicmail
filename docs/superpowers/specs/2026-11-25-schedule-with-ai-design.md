@@ -87,11 +87,18 @@ Settings keys: `calendar.callLink`, `calendar.backupCallLink`, `calendar.meeting
 
 ## Filling the meeting
 
-**Attendees.** Everyone on the email (From, To, Cc) except Kenny's own addresses (all his
-accounts' addresses and aliases, as Reply All excludes them). From and To go in To (required);
-Cc go in Cc (optional) — the same split as the existing To/Cc boxes of the meeting window. People
-named in the email body but not on it are **not** added. Order: by company A–Z (case-insensitive),
-then first name; people with no company known go last, by first name.
+**Attendees** *(changed 2026-11-26, after the Camtek–Fubon call came out with only the broker and
+Ehud as optional)*. The AI reads the **whole thread** (every message of the conversation, newest
+first, up to 60,000 characters) and chooses who is invited, and says in one line who the call is
+between. It may choose from: everyone on From/To/Cc of any message in the thread, and up to 30
+**known people** — guests of Kenny's meetings from a year back to three months on whose title shares
+a word with the thread's subject (e.g. "Camtek"), most often met first — so someone the emails
+only name ("Moshe is traveling") is found by name and company. A colleague in the conversation is
+a full attendee even if only on Cc. Addresses the AI makes up are dropped. If the AI chooses no
+one, the old rule applies: From and To required, Cc optional. Kenny's own addresses are always
+left out. Order: by company A–Z (case-insensitive), then first name; people with no company known
+go last, by first name. The notes step gets the "between" line for `{…}` parts about who the call
+is between.
 
 **Company and title** for each attendee come from the AI (signatures in the thread, the
 `Name (Company)` display-name form, the email domain as a last resort for the company). Unknown

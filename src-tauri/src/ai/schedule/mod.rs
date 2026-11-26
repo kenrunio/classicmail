@@ -7,6 +7,7 @@
 //! calendar the meeting goes into is looked at: the primary calendar of the account the email
 //! arrived in.
 
+pub(crate) mod chain;
 pub(crate) mod links;
 pub(crate) mod people;
 pub(crate) mod when;
@@ -24,7 +25,7 @@ use self::{
 };
 use super::{
     CompleteOpts, complete_json,
-    compose::{instructions, thread_context},
+    compose::instructions,
     tools::{events, fmt_time, is_busy, user_tz},
 };
 use crate::{calendar::model::EventRow, ctx::AppCtx, db::util::get_setting, mail::compose::store, rpc::Registry};
@@ -44,14 +45,24 @@ start and end as 24-hour HH:MM in the time zone the time was written in, and tha
 judged from an explicit zone (\"ET\", \"Israel time\"), the writer's signature, address, phone code or e-mail domain; \
 leave \"timeZone\" empty if you can't tell. Leave \"end\" empty if no end or length was given. \
 \"subject\" is a short meeting title from the conversation, e.g. \"Throughline Capital / Camtek\" (no RE:, FW:, [EXTERNAL]). \
-For each address in \"people\", give the person's job title and company as written in the conversation (signatures, \
+Read the whole conversation, earlier messages included, to work out who the call is between and who takes part. \
+\"attendees\" is everyone who should be invited (not me): the people on each side who take part, including someone the e-mails \
+only name (\"Moshe is traveling\"), whose address you take from \"knownPeople\" (people on my earlier meetings about the same \
+company or subject) by name and company. A colleague who is part of the conversation is a full attendee even if only copied; \
+set \"optional\" to true only for someone plainly copied for information. Only use addresses from \"people\" and \"knownPeople\"; \
+never make one up, and leave out a known person the conversation gives no reason to invite. \
+\"between\" says in one line who the call is between, side by side, e.g. \"Moshe Eisenberg, CFO of Camtek, and Camtek IR with \
+Fubon Securities (Melody Teng) for its investors\". \
+For each address in \"people\" and each attendee, give the person's job title and company as written in the conversation (signatures, \
 \"Name (Company)\" display names; for the company, the e-mail domain as a last resort, never a free mail domain like gmail.com). \
 Never invent a title or company: use null when unknown. \
 Answer with JSON only: {\"found\": true, \"date\": \"\", \"yearStated\": true, \"start\": \"\", \"end\": \"\", \"timeZone\": \"\", \
-\"subject\": \"\", \"people\": [{\"email\": \"\", \"title\": null, \"company\": null}]}.";
+\"subject\": \"\", \"between\": \"\", \"attendees\": [{\"email\": \"\", \"optional\": false}], \
+\"people\": [{\"email\": \"\", \"title\": null, \"company\": null}]}.";
 
 const NOTES_SYSTEM: &str = "You fill in a meeting-notes template. Text inside curly braces {like this} is an instruction: \
-replace each one, braces included, with the text it asks for, using the meeting's \"attendees\" (listed in the order to use) and \"subject\". \
+replace each one, braces included, with the text it asks for, using the meeting's \"attendees\" (listed in the order to use), \"subject\" \
+and \"between\" (who the call is between, when known: say it that way, side by side, with titles and companies). \
 When listing people, keep the given order and give each one's title and company when known; leave out a title or company that is \
 null rather than invent one. Keep everything outside the braces exactly as written, including the marker \u{2063}CALL-LINK\u{2063} \
 and line breaks. Plain text, no markdown. Answer with JSON only: {\"text\": \"<the filled-in notes>\"}.";
@@ -70,7 +81,18 @@ struct ReadReply {
     #[serde(flatten)]
     time: AiTime,
     subject: Option<String>,
+    /// who the call is between, in a line
+    between: Option<String>,
+    /// who to invite, chosen from the people offered
+    attendees: Option<Vec<Pick>>,
     people: Option<Vec<PersonFacts>>,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct Pick {
+    email: Option<String>,
+    optional: Option<bool>,
 }
 
 #[derive(Deserialize, Default)]
@@ -165,6 +187,7 @@ async fn from_message(ctx: Arc<AppCtx>, p: Params) -> anyhow::Result<Prepared> {
     }
     struct Loaded {
         src: store::SourceMsg,
+        older: Vec<store::SourceMsg>,
         own: HashSet<String>,
         calendar_id: Option<i64>,
         user_tz: Tz,
@@ -178,12 +201,14 @@ async fn from_message(ctx: Arc<AppCtx>, p: Params) -> anyhow::Result<Prepared> {
         .db
         .read(move |c| {
             let Some(src) = store::load_source(c, id)? else { return Ok(None) };
+            let older = chain::older_messages(c, &src)?;
             let calendar_id = c
                 .query_row("SELECT id FROM calendars WHERE account_id=?1 AND is_primary=1 ORDER BY id LIMIT 1", [src.account_id], |r| {
                     r.get(0)
                 })
                 .ok();
             Ok(Some(Loaded {
+                older,
                 own: store::own_addresses(c)?,
                 calendar_id,
                 user_tz: user_tz(c),
@@ -201,16 +226,42 @@ async fn from_message(ctx: Arc<AppCtx>, p: Params) -> anyhow::Result<Prepared> {
         .calendar_id
         .ok_or_else(|| crate::user_err!("no_calendar", "This account has no calendar yet. Press Send/Receive and try again."))?;
 
-    // 1. the AI reads the email
+    // 1. the AI reads the whole conversation and picks who is on the call: people on its emails, or
+    // on my earlier meetings about the same company (someone the emails only name)
     let mut people = people_on(&l.src, &l.own);
+    let mut offered = people.clone();
+    chain::add_thread_people(&mut offered, &l.older, &l.own);
+    let known = {
+        let (acct, own, offered) = (l.src.account_id, l.own.clone(), offered.clone());
+        let words = chain::subject_words(std::iter::once(l.src.subject.as_str()).chain(l.older.iter().map(|m| m.subject.as_str())));
+        ctx.db.read(move |c| chain::known_people(c, acct, &words, &own, &offered, crate::db::util::now_ms())).await?
+    };
+    let brief = |v: &[Person]| v.iter().map(|p| json!({ "name": p.name, "email": p.email })).collect::<Vec<_>>();
     let prompt = json!({
         "task": "schedule.read",
         "emailSent": email_sent(l.src.date, l.user_tz),
-        "people": people.iter().map(|p| json!({ "name": p.name, "email": p.email })).collect::<Vec<_>>(),
-        "thread": thread_context(&l.src),
+        "people": brief(&offered),
+        "knownPeople": brief(&known),
+        "thread": chain::chain_text(&l.src, &l.older),
     })
     .to_string();
     let r: ReadReply = complete_json(&ctx, READ_SYSTEM, &prompt, opts()).await?;
+    let mut picked: Vec<Person> = vec![];
+    for a in r.attendees.unwrap_or_default() {
+        let Some(email) = a.email.as_deref().map(str::trim) else { continue };
+        if picked.iter().any(|p| p.email.eq_ignore_ascii_case(email)) {
+            continue;
+        }
+        // only someone offered: never an address the AI made up
+        if let Some(p) = offered.iter().chain(known.iter()).find(|p| p.email.eq_ignore_ascii_case(email)) {
+            picked.push(Person { optional: a.optional == Some(true), ..p.clone() });
+        }
+    }
+    // no choice from the AI: the newest email's From / To (required) and Cc (optional), as before
+    if !picked.is_empty() {
+        people = picked;
+    }
+    let between = nonempty(r.between).unwrap_or_default();
     for f in r.people.unwrap_or_default() {
         let Some(email) = f.email else { continue };
         if let Some(p) = people.iter_mut().find(|p| p.email.eq_ignore_ascii_case(email.trim())) {
@@ -268,7 +319,8 @@ async fn from_message(ctx: Arc<AppCtx>, p: Params) -> anyhow::Result<Prepared> {
     let template = if l.template.trim().is_empty() { "{call link}".to_string() } else { l.template.clone() };
     let mut marked = mark_link(&template);
     if !instructions(&marked, &[]).is_empty() {
-        let prompt = json!({ "task": "schedule.notes", "template": marked, "attendees": people, "subject": subject }).to_string();
+        let prompt = json!({ "task": "schedule.notes", "template": marked, "attendees": people, "subject": subject, "between": between })
+            .to_string();
         // a failed notes call keeps the meeting: the template stays, { } parts and all
         match complete_json::<NotesReply>(&ctx, NOTES_SYSTEM, &prompt, opts()).await {
             Ok(n) => {
