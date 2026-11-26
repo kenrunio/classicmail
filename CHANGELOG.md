@@ -3,6 +3,14 @@
 What changed in each ClassicMail version, newest first. Installers are built with
 `node scripts/release.mjs`; each version is a "Version x.y.z" commit on `main`.
 
+## 1.24.15 — 2026-11-26
+- **Shared meetings**: an event someone shares from Apple Calendar (you're not on its guest list,
+  so Google never puts it on your calendar) now shows **Add to Calendar**, which copies it to your
+  calendar. Accept / Tentative on an invitation Google didn't add (a forwarded one) copy it too.
+  The reading pane now finds these meetings on your calendar: the event's reminder carried an ID
+  of its own that was taken for the meeting's. A response that couldn't add the meeting now says
+  so and keeps the message, instead of deleting it.
+
 ## 1.24.14 — 2026-11-25
 - **Schedule with AI**: a new button next to Reply with AI (also in the Actions and right-click
   menus and the message window) for an email where a call time has been agreed. AI reads the email
